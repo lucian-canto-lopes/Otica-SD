@@ -2,6 +2,10 @@
 
 Projeto acadêmico de Sistemas Distribuídos. Interface HTML/CSS/JavaScript, API PHP 8.3 e MySQL 8.4, executados em três serviços Docker. O Nginx entrega a interface e encaminha `/api/` à API por HTTP; a API acessa o banco pela rede interna do Compose. O navegador não acessa diretamente o banco.
 
+## Organização do código
+
+Consulte o [guia da estrutura](docs/estrutura.md) para conhecer as pastas, acompanhar o fluxo de uma requisição e localizar cada funcionalidade. A entrada da API fica em `app/api/index.php`, as regras em `app/src/controllers/` e os módulos da interface em `app/public/js/`.
+
 ## Executar
 
 Requisitos: Docker Engine e Docker Compose v2.

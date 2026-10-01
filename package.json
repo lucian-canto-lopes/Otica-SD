@@ -1,0 +1,14 @@
+{
+  "name": "oticaflow",
+  "private": true,
+  "description": "Ferramentas de formatação do protótipo; não são necessárias para executar o sistema.",
+  "scripts": {
+    "format": "prettier --write \"app/**/*.php\" \"app/public/**/*.js\" \"app/public/*.html\" \"app/public/*.css\" \"db/*.sql\"",
+    "format:check": "prettier --check \"app/**/*.php\" \"app/public/**/*.js\" \"app/public/*.html\" \"app/public/*.css\" \"db/*.sql\""
+  },
+  "devDependencies": {
+    "prettier": "3.9.9",
+    "@prettier/plugin-php": "0.25.0",
+    "prettier-plugin-sql": "0.20.0"
+  }
+}
