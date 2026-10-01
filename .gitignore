@@ -1,0 +1,32 @@
+# Variáveis de ambiente e segredos locais
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Dependências instaladas localmente
+node_modules/
+vendor/
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+.cache/
+
+# Python (testes)
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Configurações pessoais de editores
+.idea/
+.vscode/
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ÓticaFlow · Gestão de óticas</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+<section id="login" class="login-layout">
+ <div class="intro"><div class="brand">◎ ÓticaFlow</div><span class="eyebrow">GESTÃO COM MAIS CLAREZA</span><h1>Seu negócio.<br>Uma nova visão.</h1><p>Clientes, vendas e atendimento conectados em um só lugar.</p><div class="lens"><span>◎</span></div><small>Projeto acadêmico · Sistemas Distribuídos</small></div>
+ <div class="login-panel"><form id="login-form"><span class="eyebrow">BEM-VINDO DE VOLTA</span><h2>Acesse sua conta</h2><p>Organize o dia a dia da sua ótica.</p><label>E-mail<input name="email" type="email" required autocomplete="username" value="dono@otica.test"></label><label>Senha<input name="password" type="password" required autocomplete="current-password" value="otica123"></label><button>Entrar na plataforma →</button><div id="login-error" role="alert"></div><aside><strong>Explore a demonstração</strong><p>Ótica: dono@otica.test · otica123<br>Administrador: admin@sistema.test · admin123</p></aside></form></div>
+</section>
+<div id="app" hidden><aside class="sidebar"><div class="brand">◎ ÓticaFlow</div><small>ESPAÇO DE TRABALHO</small><nav id="nav"></nav><div class="sidebar-bottom">Sua gestão em foco.<br><small>Protótipo acadêmico · v0.1</small></div></aside><main><header><div><span class="eyebrow" id="context"></span><h1 id="title"></h1></div><div class="account"><span id="username"></span><button class="secondary" id="logout">Sair</button></div></header><div id="notice" role="status"></div><div id="content"></div></main></div>
+<dialog id="modal"><form id="record-form"><div class="modal-header"><h2 id="modal-title"></h2><button type="button" class="secondary" id="close-modal" aria-label="Fechar">✕</button></div><div id="fields"></div><div id="form-error" role="alert"></div><button id="save">Salvar</button></form></dialog>
+<script src="app.js"></script></body></html>

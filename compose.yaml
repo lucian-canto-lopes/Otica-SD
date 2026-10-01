@@ -1,0 +1,37 @@
+services:
+  frontend:
+    image: nginx:1.28-alpine
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./app/public:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+  api:
+    build: ./app
+    environment:
+      DB_HOST: db
+      DB_NAME: opticas
+      DB_USER: opticas
+      DB_PASS: ${DB_PASSWORD:-opticas_demo_123}
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: opticas
+      MYSQL_USER: opticas
+      MYSQL_PASSWORD: ${DB_PASSWORD:-opticas_demo_123}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_demo_123}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h 127.0.0.1 -u $$MYSQL_USER $$MYSQL_DATABASE -e 'SELECT COUNT(*) FROM companies' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+volumes:
+  mysql_data:
