@@ -8,12 +8,15 @@
   color: #213c3c;
   background: #f5f7f7;
   font-synthesis: none;
+  color-scheme: light;
 }
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
+  min-height: 100vh;
+  background: #f5f7f7;
 }
 button,
 input,
@@ -36,6 +39,23 @@ button:hover {
 button:disabled {
   opacity: 0.5;
   cursor: wait;
+}
+.theme-toggle {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid #d5e1dd;
+  border-radius: 50%;
+  background: #fff;
+  color: #23483f;
+  box-shadow: 0 5px 20px #123e3717;
+  font-size: 20px;
 }
 .secondary {
   background: #e9f0ee;
@@ -67,6 +87,30 @@ small {
   font-size: 25px;
   font-weight: 750;
   letter-spacing: -1px;
+}
+.workspace-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+#workspace-brand-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workspace-brand-logo {
+  width: 68px;
+  height: 68px;
+  border-radius: 12px;
+  object-fit: contain;
+  background: white;
+}
+.workspace-brand-symbol {
+  line-height: 1;
 }
 .eyebrow {
   display: block;
@@ -201,8 +245,25 @@ textarea {
 .sidebar-bottom {
   margin-top: auto;
   padding-top: 50px;
-  font-size: 13px;
-  line-height: 1.8;
+}
+.sidebar-bottom button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  text-align: left;
+  background: transparent;
+  color: #bed1cb;
+}
+.sidebar-bottom button:hover,
+.sidebar-bottom button.active {
+  background: #2a574c;
+  color: white;
+}
+.sidebar-bottom button > span:last-child {
+  font-size: 14px;
+  font-weight: 600;
 }
 main {
   flex: 1;
@@ -227,6 +288,7 @@ header h1 {
   display: flex;
   gap: 16px;
   align-items: center;
+  margin-right: 52px;
   font-size: 13px;
 }
 /* Painel e indicadores */
@@ -334,6 +396,53 @@ dialog {
   max-height: 90vh;
   box-shadow: 0 25px 90px #123e3733;
 }
+.settings-card {
+  max-width: 680px;
+  padding: 30px;
+  border: 1px solid #e1e8e5;
+  border-radius: 14px;
+  background: white;
+}
+.settings-card form {
+  max-width: 460px;
+  margin-top: 28px;
+}
+.branding-preview {
+  width: 110px;
+  height: 110px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 24px;
+  border: 1px dashed #adc2bc;
+  border-radius: 16px;
+  background: #f4f8f6;
+  overflow: hidden;
+}
+.branding-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.branding-placeholder {
+  color: #4c8175;
+  font-size: 52px;
+}
+.remove-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.remove-logo input {
+  width: auto;
+  margin: 0;
+}
+#branding-error {
+  min-height: 20px;
+  margin: 10px 0;
+  color: #b84638;
+  font-size: 13px;
+}
 dialog::backdrop {
   background: #123e3780;
 }
@@ -365,6 +474,81 @@ dialog::backdrop {
   font-size: 13px;
   color: #7d8f88;
   margin-top: 16px;
+}
+
+/* Modo escuro */
+:root[data-theme='dark'] {
+  color: #e4eeeb;
+  background: #0e1918;
+  color-scheme: dark;
+}
+[data-theme='dark'] body,
+[data-theme='dark'] main,
+[data-theme='dark'] .login-panel {
+  background: #0e1918;
+}
+[data-theme='dark'] p,
+[data-theme='dark'] small,
+[data-theme='dark'] .hint,
+[data-theme='dark'] .card span,
+[data-theme='dark'] .empty {
+  color: #9fb3ae;
+}
+[data-theme='dark'] .eyebrow {
+  color: #86a69e;
+}
+[data-theme='dark'] .secondary,
+[data-theme='dark'] .theme-toggle {
+  border-color: #31504a;
+  background: #20332f;
+  color: #e3eeeb;
+}
+[data-theme='dark'] .login-panel aside,
+[data-theme='dark'] .welcome {
+  background: #172b27;
+}
+[data-theme='dark'] input,
+[data-theme='dark'] select,
+[data-theme='dark'] textarea {
+  border-color: #344d48;
+  background: #142320;
+  color: #edf5f2;
+}
+[data-theme='dark'] input::file-selector-button {
+  border: 1px solid #46645d;
+  border-radius: 5px;
+  background: #263c37;
+  color: #edf5f2;
+}
+[data-theme='dark'] header {
+  border-color: #263b36;
+}
+[data-theme='dark'] .card,
+[data-theme='dark'] .table-wrap,
+[data-theme='dark'] .settings-card,
+[data-theme='dark'] dialog {
+  border-color: #2a413c;
+  background: #152522;
+  color: #e4eeeb;
+}
+[data-theme='dark'] th {
+  background: #192b27;
+  color: #9cb1ab;
+}
+[data-theme='dark'] td {
+  border-color: #293d38;
+}
+[data-theme='dark'] .badge {
+  background: #244137;
+  color: #9fd2bd;
+}
+[data-theme='dark'] .branding-preview {
+  border-color: #48635d;
+  background: #10201d;
+}
+[data-theme='dark'] .branding-placeholder,
+[data-theme='dark'] #notice {
+  color: #7fc0ae;
 }
 /* Adaptação para telas menores */
 @media (max-width: 1000px) {

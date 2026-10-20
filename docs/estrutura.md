@@ -14,6 +14,7 @@ app/
 │       ├── api.js            Requisições HTTP e token da sessão
 │       ├── constants.js      Títulos, botões e nomes das etapas
 │       ├── dashboard.js      Apresentação dos indicadores e entregas
+│       ├── branding.js       Nome, logo e prévia da identidade da ótica
 │       ├── forms.js          Campos dos formulários e total da venda
 │       ├── tables.js         Listagens e seletores de status
 │       └── utils.js          Seleção de elementos, datas, moeda e escape HTML
@@ -26,6 +27,7 @@ app/
 │   ├── validation.php        Validação de campos e vínculo do cliente à empresa
 │   └── controllers/
 │       ├── companies.php     Empresas, responsáveis e assinaturas
+│       ├── branding.php      Nome e logo da empresa autenticada
 │       ├── dashboard.php     Consultas dos indicadores
 │       ├── clients.php       Cadastro e consulta de clientes
 │       ├── products.php      Cadastro e consulta de produtos

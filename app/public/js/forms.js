@@ -1,6 +1,6 @@
-import { selectElement, escapeHtml, formatMoney } from './utils.js';
-import { requestApi } from './api.js';
-import { formTitles } from './constants.js';
+import { selectElement, escapeHtml, formatMoney } from './utils.js?v=4';
+import { requestApi } from './api.js?v=4';
+import { formTitles } from './constants.js?v=4';
 
 function renderInput(name, label, type = 'text', attributes = '') {
   return `

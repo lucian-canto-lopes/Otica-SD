@@ -6,7 +6,10 @@ require_once __DIR__ . '/http.php';
 require_once __DIR__ . '/validation.php';
 require_once __DIR__ . '/auth.php';
 
-foreach (['companies', 'dashboard', 'clients', 'products', 'sales', 'orders'] as $controller) {
+foreach (
+    ['companies', 'branding', 'dashboard', 'clients', 'products', 'sales', 'orders']
+    as $controller
+) {
     require_once __DIR__ . '/controllers/' . $controller . '.php';
 }
 

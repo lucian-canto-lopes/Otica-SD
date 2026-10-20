@@ -1,6 +1,6 @@
-import { escapeHtml, formatMoney, formatDate } from './utils.js';
-import { statusLabels } from './constants.js';
-import { renderTable } from './tables.js';
+import { escapeHtml, formatMoney, formatDate } from './utils.js?v=4';
+import { statusLabels } from './constants.js?v=4';
+import { renderTable } from './tables.js?v=4';
 
 export function renderDashboard(indicators, orders) {
   const cards = [

@@ -5,7 +5,8 @@ CREATE TABLE companies (
   name VARCHAR(120) NOT NULL,
   document VARCHAR(30) NOT NULL DEFAULT '',
   plan VARCHAR(40) NOT NULL DEFAULT 'Essencial',
-  status ENUM('trial', 'active', 'blocked') NOT NULL DEFAULT 'trial'
+  status ENUM('trial', 'active', 'blocked') NOT NULL DEFAULT 'trial',
+  logo_data MEDIUMTEXT NULL
 );
 
 CREATE TABLE users (

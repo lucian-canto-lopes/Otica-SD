@@ -58,6 +58,22 @@ def main():
     company_id = admin.call('companies')[0]['id']
     optical_client = Client()
     optical_client.login(email, 'teste12345')
+
+    # O responsável pode personalizar apenas a empresa vinculada à sua sessão.
+    demo_logo = (
+        'data:image/png;base64,'
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+'
+        'A8AAQUBAScY42YAAAAASUVORK5CYII='
+    )
+    optical_client.call(
+        'branding',
+        dict(name='Ótica personalizada', logo_data=demo_logo),
+        method='PATCH',
+    )
+    branding = optical_client.call('branding')
+    assert branding['name'] == 'Ótica personalizada'
+    assert branding['logo_data'] == demo_logo
+
     optical_client.call('clients', dict(name='Cliente teste', phone='123'), expected=201)
     client_id = optical_client.call('clients')[0]['id']
     optical_client.call(
@@ -94,6 +110,7 @@ def main():
     # Uma segunda empresa não deve acessar clientes ou operações da primeira.
     other_company = Client()
     other_company.login('dono@segunda.test', 'otica123')
+    assert other_company.call('branding')['name'] != 'Ótica personalizada'
     assert client_id not in [record['id'] for record in other_company.call('clients')]
     other_company.call('sales', sale, expected=422)
     other_company.call('companies', expected=403)

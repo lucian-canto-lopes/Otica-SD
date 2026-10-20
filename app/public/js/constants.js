@@ -1,5 +1,6 @@
 export const pageTitles = {
   dashboard: 'Visão geral',
+  branding: 'Identidade da ótica',
   companies: 'Óticas e assinaturas',
   clients: 'Clientes',
   products: 'Produtos e estoque',

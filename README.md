@@ -29,7 +29,7 @@ Para parar sem apagar dados: `docker compose down`. O volume `mysql_data` preser
 ## Funcionalidades e regras
 
 - Administrador geral: cadastrar empresas com conta de responsável; controlar assinatura em avaliação, ativa ou suspensa.
-- Cada ótica: painel, cadastro de clientes, produtos e estoque, registro de venda e acompanhamento de ordens de serviço.
+- Cada ótica: painel, identidade com nome e logo próprios, cadastro de clientes, produtos e estoque, registro de venda e acompanhamento de ordens de serviço.
 - Todas as consultas operacionais usam a empresa da sessão. IDs enviados pelo navegador não permitem escolher outra empresa.
 - Uma venda possui um produto e uma quantidade. O preço vem do banco, o total é calculado na API, e o pagamento não pode superar o total.
 - A venda e a baixa de estoque são gravadas numa transação com bloqueio da linha do produto, evitando vendas concorrentes acima do estoque disponível.

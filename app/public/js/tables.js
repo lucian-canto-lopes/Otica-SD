@@ -1,5 +1,5 @@
-import { escapeHtml, formatMoney, formatDate } from './utils.js';
-import { statusLabels } from './constants.js';
+import { escapeHtml, formatMoney, formatDate } from './utils.js?v=4';
+import { statusLabels } from './constants.js?v=4';
 
 export function renderTable(headers, rows) {
   const headings = headers.map((heading) => `<th>${heading}</th>`).join('');

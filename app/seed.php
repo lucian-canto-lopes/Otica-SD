@@ -4,6 +4,21 @@ declare(strict_types=1);
 require __DIR__ . '/config/database.php';
 
 // INSERT IGNORE preserva as contas existentes quando o contêiner reinicia.
+// Atualiza volumes criados antes do recurso de identidade visual.
+$logoColumnExists = (bool) executeQuery(
+    <<<'SQL'
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'companies'
+      AND column_name = 'logo_data'
+    SQL
+    ,
+)->fetchColumn();
+
+if (!$logoColumnExists) {
+    executeQuery('ALTER TABLE companies ADD COLUMN logo_data MEDIUMTEXT NULL');
+}
 
 $demoUsers = [
     [null, 'Administrador geral', 'admin@sistema.test', 'admin123', 'platform_admin'],

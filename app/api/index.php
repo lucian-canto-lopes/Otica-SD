@@ -41,6 +41,11 @@ try {
                 showDashboard($companyId);
             }
             break;
+        case 'branding':
+            if ($user['role'] !== 'company_admin') {
+                sendError('Acesso restrito ao responsável pela ótica.', 403);
+            }
+            handleBranding($method, $input, $companyId);
         case 'clients':
             handleClients($method, $input, $companyId);
         case 'products':
