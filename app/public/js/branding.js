@@ -1,5 +1,5 @@
-import { escapeHtml, selectElement } from './utils.js?v=4';
-import { requestApi } from './api.js?v=4';
+import { escapeHtml, selectElement } from './utils.js?v=6';
+import { requestApi } from './api.js?v=6';
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'];

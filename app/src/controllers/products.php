@@ -8,13 +8,17 @@ function handleProducts(string $method, array $input, int $companyId): never
             executeQuery(
                 <<<'SQL'
                 SELECT
-                  *
+                  p.*,
+                  partner.name AS supplier
                 FROM
-                  products
+                  products p
+                  LEFT JOIN partners partner
+                    ON partner.id = p.supplier_id
+                    AND partner.company_id = p.company_id
                 WHERE
-                  company_id = ?
+                  p.company_id = ?
                 ORDER BY
-                  id DESC
+                  p.id DESC
                 SQL
                 ,
                 [$companyId],
@@ -24,12 +28,13 @@ function handleProducts(string $method, array $input, int $companyId): never
     if ($method !== 'POST') {
         sendError('Método não permitido.', 405);
     }
+    $supplierId = optionalCompanyPartner($input, 'supplier_id', $companyId, 'supplier');
     executeQuery(
         <<<'SQL'
         INSERT INTO
-          products (company_id, name, category, price, stock)
+          products (company_id, name, category, price, stock, supplier_id)
         VALUES
-          (?, ?, ?, ?, ?)
+          (?, ?, ?, ?, ?, ?)
         SQL
         ,
         [
@@ -38,6 +43,7 @@ function handleProducts(string $method, array $input, int $companyId): never
             requiredText($input, 'category', 60),
             moneyToCents($input['price'] ?? '') / 100,
             validatedInteger($input['stock'] ?? 0, 0),
+            $supplierId,
         ],
     );
     sendJson(['ok' => true], 201);

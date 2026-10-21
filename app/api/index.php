@@ -48,12 +48,18 @@ try {
             handleBranding($method, $input, $companyId);
         case 'clients':
             handleClients($method, $input, $companyId);
+        case 'partners':
+            handlePartners($method, $input, $companyId);
         case 'products':
             handleProducts($method, $input, $companyId);
         case 'sales':
             handleSales($method, $input, $companyId);
         case 'orders':
             handleOrders($method, $input, $companyId);
+        case 'interactions':
+            handleInteractions($method, $input, $companyId);
+        case 'reminders':
+            handleReminders($method, $input, $companyId);
     }
     sendError('Recurso não encontrado.', 404);
 } catch (Throwable $exception) {

@@ -13,5 +13,13 @@ export function formatMoney(value) {
 }
 
 export function formatDate(value) {
-  return escapeHtml(value?.split('-').reverse().join('/') || '—');
+  const match = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : '—';
+}
+
+export function formatDateTime(value) {
+  const match = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  return match
+    ? `${match[3]}/${match[2]}/${match[1]} às ${match[4]}:${match[5]}`
+    : formatDate(value);
 }

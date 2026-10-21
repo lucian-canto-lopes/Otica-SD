@@ -18,6 +18,21 @@ services:
     depends_on:
       db:
         condition: service_healthy
+  worker:
+    build: ./app
+    command: ["php", "/var/www/worker.php"]
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_NAME: opticas
+      DB_USER: opticas
+      DB_PASS: ${DB_PASSWORD:-opticas_demo_123}
+      REMINDER_WORKER_INTERVAL: 300
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
   db:
     image: mysql:8.4
     environment:

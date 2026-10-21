@@ -9,7 +9,7 @@
       const preferredTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       document.documentElement.dataset.theme = savedTheme || preferredTheme;
     </script>
-    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="styles.css?v=12" />
   </head>
   <body>
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Ativar modo escuro">
@@ -94,6 +94,6 @@
         <button id="save">Salvar</button>
       </form>
     </dialog>
-    <script type="module" src="app.js?v=7"></script>
+    <script type="module" src="app.js?v=11"></script>
   </body>
 </html>

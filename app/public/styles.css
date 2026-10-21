@@ -374,6 +374,64 @@ td select {
   font-size: 12px;
   min-width: 140px;
 }
+.contact-cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.whatsapp-link {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #b8d9cf;
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: #eaf5f0;
+  color: #17634f;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.whatsapp-link:hover {
+  filter: brightness(0.96);
+}
+.muted {
+  color: #91a09b;
+}
+.table-action {
+  padding: 7px 10px;
+  background: #e9f0ee;
+  color: #345550;
+  font-size: 12px;
+}
+.order-history {
+  min-width: 180px;
+  white-space: normal;
+}
+.order-history summary {
+  cursor: pointer;
+  color: #297464;
+  font-weight: 650;
+}
+.order-history ol {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 0;
+  padding-left: 20px;
+}
+.order-history li {
+  padding-left: 3px;
+}
+.order-history strong,
+.order-history time,
+.order-history li span {
+  display: block;
+}
+.order-history time,
+.order-history li span {
+  margin-top: 3px;
+  color: #7d8f88;
+  font-size: 11px;
+}
 .badge {
   display: inline-block;
   padding: 5px 10px;
@@ -542,6 +600,25 @@ dialog::backdrop {
   background: #244137;
   color: #9fd2bd;
 }
+[data-theme='dark'] .whatsapp-link {
+  border-color: #365e52;
+  background: #1d3b32;
+  color: #9bd7c1;
+}
+[data-theme='dark'] .muted {
+  color: #758d87;
+}
+[data-theme='dark'] .table-action {
+  background: #253a35;
+  color: #dbe9e5;
+}
+[data-theme='dark'] .order-history summary {
+  color: #8acdbb;
+}
+[data-theme='dark'] .order-history time,
+[data-theme='dark'] .order-history li span {
+  color: #9fb3ae;
+}
 [data-theme='dark'] .branding-preview {
   border-color: #48635d;
   background: #10201d;
@@ -596,9 +673,15 @@ dialog::backdrop {
   .sidebar .brand {
     margin: 0;
   }
-  .sidebar > small,
-  .sidebar-bottom {
+  .sidebar > small {
     display: none;
+  }
+  .sidebar-bottom {
+    margin-top: 10px;
+    padding-top: 0;
+  }
+  .sidebar-bottom button {
+    width: auto;
   }
   .sidebar nav {
     display: flex;

@@ -1,10 +1,10 @@
-import { selectElement } from './js/utils.js?v=4';
-import { pageTitles, createButtonLabels } from './js/constants.js?v=4';
-import { requestApi, setSession } from './js/api.js?v=4';
-import { renderRecordsTable } from './js/tables.js?v=4';
-import { renderDashboard } from './js/dashboard.js?v=4';
-import { openRecordForm } from './js/forms.js?v=4';
-import { bindBrandingForm, renderBranding } from './js/branding.js?v=4';
+import { selectElement } from './js/utils.js?v=6';
+import { pageTitles, createButtonLabels } from './js/constants.js?v=6';
+import { requestApi, setSession } from './js/api.js?v=6';
+import { renderRecordsTable } from './js/tables.js?v=7';
+import { renderDashboard } from './js/dashboard.js?v=6';
+import { openRecordForm } from './js/forms.js?v=7';
+import { bindBrandingForm, renderBranding } from './js/branding.js?v=6';
 
 let currentView;
 let currentSession;
@@ -48,13 +48,32 @@ async function startApplication() {
   const availablePages =
     session.user.role === 'platform_admin'
       ? ['companies']
-      : ['dashboard', 'clients', 'products', 'sales', 'orders'];
-  const navigationIcons = ['◈', '○', '▦', '↗', '▤'];
+      : [
+          'dashboard',
+          'clients',
+          'interactions',
+          'reminders',
+          'products',
+          'partners',
+          'sales',
+          'orders',
+        ];
+  const navigationIcons = {
+    companies: '◇',
+    dashboard: '◈',
+    clients: '○',
+    interactions: '◌',
+    reminders: '◷',
+    products: '▦',
+    partners: '⌘',
+    sales: '↗',
+    orders: '▤',
+  };
   selectElement('#nav').innerHTML = availablePages
     .map(
-      (page, index) => `
+      (page) => `
     <button data-view="${page}">
-      <span>${navigationIcons[index]}</span> &nbsp;${pageTitles[page]}
+      <span>${navigationIcons[page]}</span> &nbsp;${pageTitles[page]}
     </button>
   `,
     )
@@ -85,7 +104,17 @@ async function loadPage(page = currentView) {
   }
 
   const records = await requestApi(page);
-  const countLabel = page === 'companies' ? 'óticas cadastradas' : 'registros';
+  const countLabels = {
+    companies: 'óticas cadastradas',
+    clients: 'clientes',
+    interactions: 'interações registradas',
+    reminders: 'lembretes',
+    products: 'produtos',
+    partners: 'parceiros',
+    sales: 'vendas',
+    orders: 'ordens de serviço',
+  };
+  const countLabel = countLabels[page] || 'registros';
   const subscriptionHint =
     page === 'companies'
       ? '<p class="hint">Gerencie o acesso das empresas. As assinaturas são controladas manualmente neste protótipo.</p>'
@@ -102,12 +131,23 @@ async function loadPage(page = currentView) {
   document.querySelectorAll('[data-status]').forEach((select) => {
     select.onchange = () => updateStatus(select, page).catch(showNotice);
   });
+  document.querySelectorAll('[data-edit]').forEach((button) => {
+    button.onclick = () => {
+      const record = records.find((item) => String(item.id) === button.dataset.edit);
+      if (record) {
+        openRecordForm(page, {
+          ...record,
+          phone: record.phone || record.client_phone || button.dataset.editPhone || '',
+        }).catch(showNotice);
+      }
+    };
+  });
 }
 
 async function updateStatus(select, page) {
   await requestApi(page, { id: select.dataset.status, status: select.value }, 'PATCH');
   await loadPage();
-  showNotice('Etapa atualizada.');
+  showNotice(page === 'reminders' ? 'Lembrete atualizado.' : 'Etapa atualizada.');
 }
 
 async function brandingSaved(company) {
@@ -141,7 +181,11 @@ async function saveRecord(event) {
   saveButton.disabled = true;
   try {
     const input = Object.fromEntries(new FormData(event.target));
-    await requestApi(currentView, input);
+    const method = event.target.dataset.method || 'POST';
+    if (method === 'PATCH') {
+      input.id = event.target.dataset.recordId;
+    }
+    await requestApi(currentView, input, method);
     selectElement('#modal').close();
     await loadPage();
     showNotice('Registro salvo com sucesso.');
