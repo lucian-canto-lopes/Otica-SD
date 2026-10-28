@@ -1,0 +1,13 @@
+# Em instalações Apache (XAMPP/hospedagem), somente a interface (public/) e a API (api/) ficam acessíveis.
+# Código, configuração, migrações e arquivos enviados pelos clientes nunca são servidos diretamente.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(public|api)(/|$) - [L]
+  RewriteRule ^ - [F,L]
+</IfModule>
+<IfModule !mod_rewrite.c>
+  Require all denied
+  <FilesMatch "^$">
+    Require all granted
+  </FilesMatch>
+</IfModule>

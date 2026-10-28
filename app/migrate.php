@@ -105,4 +105,6 @@ if (!fetchValue('SELECT COUNT(*) FROM users WHERE is_superadmin = 1')) {
 }
 
 ensureDirectory(storagePath());
+// Proteção extra caso a pasta de arquivos fique dentro da raiz pública do Apache.
+file_put_contents(storagePath('.htaccess'), "Require all denied\n");
 out('Banco pronto (versão ' . APP_VERSION . ').');

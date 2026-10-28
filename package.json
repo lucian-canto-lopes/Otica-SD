@@ -1,10 +1,15 @@
 {
-  "name": "oticaflow",
+  "name": "ocular",
+  "version": "2.0.0",
   "private": true,
-  "description": "Ferramentas de formatação do protótipo; não são necessárias para executar o sistema.",
+  "description": "Ocular — CRM e gestão para óticas. A interface fica em web/ e a API em app/.",
   "scripts": {
-    "format": "prettier --write \"app/**/*.php\" \"app/public/**/*.js\" \"app/public/*.html\" \"app/public/*.css\" \"db/*.sql\"",
-    "format:check": "prettier --check \"app/**/*.php\" \"app/public/**/*.js\" \"app/public/*.html\" \"app/public/*.css\" \"db/*.sql\""
+    "build": "npm --prefix web run build",
+    "dev": "npm --prefix web run dev",
+    "migrate": "php app/migrate.php",
+    "smoke": "bash tests/smoke.sh",
+    "format": "prettier --write \"app/**/*.php\" \"web/src/**/*.{js,jsx,css}\"",
+    "format:check": "prettier --check \"app/**/*.php\" \"web/src/**/*.{js,jsx,css}\""
   },
   "devDependencies": {
     "prettier": "3.9.9",

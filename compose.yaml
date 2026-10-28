@@ -1,3 +1,14 @@
+x-api-env: &api-env
+  DB_HOST: db
+  DB_NAME: ocular
+  DB_USER: ocular
+  DB_PASS: ${DB_PASSWORD:-ocular_demo_123}
+  # Endereço público da API (usado para montar as URLs de webhook do WhatsApp/Meta).
+  PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080/api}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ocular.local}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+  TZ: America/Sao_Paulo
+
 services:
   frontend:
     image: nginx:1.28-alpine
@@ -10,24 +21,21 @@ services:
       - api
   api:
     build: ./app
-    environment:
-      DB_HOST: db
-      DB_NAME: opticas
-      DB_USER: opticas
-      DB_PASS: ${DB_PASSWORD:-opticas_demo_123}
+    environment: *api-env
+    volumes:
+      - uploads:/var/www/storage
     depends_on:
       db:
         condition: service_healthy
   worker:
     build: ./app
-    command: ["php", "/var/www/worker.php"]
+    command: ["sh", "-c", "sleep 15 && php /var/www/worker.php"]
     restart: unless-stopped
     environment:
-      DB_HOST: db
-      DB_NAME: opticas
-      DB_USER: opticas
-      DB_PASS: ${DB_PASSWORD:-opticas_demo_123}
-      REMINDER_WORKER_INTERVAL: 300
+      <<: *api-env
+      WORKER_INTERVAL: 60
+    volumes:
+      - uploads:/var/www/storage
     depends_on:
       db:
         condition: service_healthy
@@ -36,17 +44,18 @@ services:
   db:
     image: mysql:8.4
     environment:
-      MYSQL_DATABASE: opticas
-      MYSQL_USER: opticas
-      MYSQL_PASSWORD: ${DB_PASSWORD:-opticas_demo_123}
+      MYSQL_DATABASE: ocular
+      MYSQL_USER: ocular
+      MYSQL_PASSWORD: ${DB_PASSWORD:-ocular_demo_123}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_demo_123}
+      TZ: America/Sao_Paulo
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h 127.0.0.1 -u $$MYSQL_USER $$MYSQL_DATABASE -e 'SELECT COUNT(*) FROM companies' >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h 127.0.0.1 -u $$MYSQL_USER $$MYSQL_DATABASE -e 'SELECT 1' >/dev/null 2>&1"]
       interval: 5s
       timeout: 5s
       retries: 30
 volumes:
   mysql_data:
+  uploads:

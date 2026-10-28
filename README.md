@@ -1,111 +1,91 @@
-# Ocular — CRM e gestão operacional para óticas
+# Ocular — CRM e gestão para óticas (v2)
 
-Protótipo acadêmico de Sistemas Distribuídos. O Ocular reúne relacionamento com clientes, vendas, estoque, parceiros e ordens de serviço em uma plataforma multiempresa. A administração geral controla as óticas e suas assinaturas, enquanto cada estabelecimento acessa somente os próprios dados.
+Sistema multiótica: cada ótica tem seu ambiente isolado (clientes, vendas, estoque, OS, CRM e campanhas) e um painel de plataforma permite ao superadministrador liberar, bloquear e cobrar cada ótica. Um mesmo usuário pode trabalhar em várias óticas, com um papel em cada uma.
 
-A interface usa HTML, CSS e JavaScript; a API e o processador de lembretes usam PHP 8.3; e os dados ficam no MySQL 8.4. Os componentes são executados em quatro serviços Docker. O Nginx entrega a interface e encaminha `/api/` à API por HTTP; a API e o worker acessam o banco pela rede interna do Compose. O navegador não acessa diretamente o banco.
+- **Interface:** React 18 + Vite (`web/`), compilada para `app/public/`.
+- **API e processamento:** PHP 8.2+ (`app/`), MySQL 8 ou MariaDB 10.4+.
+- **PDFs:** FPDF (incluído em `app/lib/fpdf`), sem dependências extras.
 
-## Organização do código
+## Funcionalidades
 
-Consulte o [guia da estrutura](docs/estrutura.md) para conhecer as pastas, acompanhar o fluxo de uma requisição e localizar cada funcionalidade. A entrada da API fica em `app/api/index.php`, as regras em `app/src/controllers/` e os módulos da interface em `app/public/js/`.
+**Plataforma (superadmin):** painel com MRR, óticas por situação, faturas do mês e inadimplência; cadastro de óticas e responsáveis; bloqueio/desbloqueio com motivo (o acesso cai imediatamente, inclusive em sessões abertas); usuários com acesso a várias óticas; planos; faturas mensais (geração em lote, baixa e cancelamento); auditoria geral; acesso direto a qualquer ótica.
 
-## Executar
+**Em cada ótica:**
 
-Requisitos: Docker Engine e Docker Compose v2.
+- **Clientes** com etiquetas múltiplas, receitas (OD/OE), autorização de mensagens (LGPD), ficha com indicadores e **linha do tempo** unificada (vendas, orçamentos, OS, atendimentos, mensagens, campanhas, não compras, anexos). Painel da carteira (recência, faixa etária, cidades, origem, aniversariantes, receitas vencendo, melhores clientes).
+- **Produtos e estoque** com histórico de movimentações, entrada de mercadoria, inventário e alerta de mínimo. **Fornecedores e laboratórios.**
+- **Orçamentos** → conversão em venda com um clique ou registro de perda com motivo.
+- **Vendas** não fiscais: itens do estoque **ou itens livres**, desconto, entrada + parcelas, baixa de parcelas, cancelamento com estorno de estoque, **pedido em PDF A5**.
+- **Ordens de serviço** vinculadas à venda ou avulsas, quadro kanban por etapa (arrastar e soltar), histórico, **OS em PDF A5 com canhoto** para o cliente.
+- **Numeração configurável** do próximo pedido, OS e orçamento (continuidade com o sistema anterior).
+- **Anexos** (fotos e documentos) em cliente, venda, OS e orçamento — no celular, o botão *Tirar foto* abre a câmera.
+- **Atendimento (CRM)**: caixa de conversas por WhatsApp, Instagram e Messenger. Cada ótica escolhe o modo:
+  - *Manual*: o sistema prepara a mensagem e abre o WhatsApp do atendente (wa.me);
+  - *API oficial da Meta* (WhatsApp Cloud API), com modelos aprovados para campanhas;
+  - *API não oficial*: Evolution API ou Z-API.
+- **Campanhas** (promoção do mês, aniversariantes, vencimento de receita, Natal, Black Friday, reativação…) com público por filtros ou relatório salvo, modos manual/semiautomático/automático, janela de horário e limite por minuto. **Cada cliente recebe a campanha uma única vez** e a tela mostra quem já recebeu, quem respondeu e quem falta.
+- **Automações** por gatilho (aniversário, receita vencendo, X dias sem comprar, pós-venda, orçamento parado, OS pronta, novo cliente, palavra-chave recebida) com ações de enviar mensagem, criar tarefa, etiquetar ou chamar um webhook.
+- **Tarefas do dia** geradas automaticamente (aniversários, receitas, retirada, orçamentos, renovação).
+- **Não compras / desistências** de clientes e não clientes, com motivos configuráveis e relatório gerencial.
+- **Relatórios flexíveis** sobre clientes, vendas, itens, orçamentos, OS, atendimentos, não compras, produtos e recebimentos: filtros cruzados (inclusive filtros de cliente em qualquer relatório), colunas, agrupamento, exportação CSV, relatórios salvos e **criação de campanha a partir do relatório**.
+- **Importação** de planilhas (Excel/CSV) de clientes, produtos, fornecedores, vendas, itens de venda e receitas, com mapeamento de colunas e reimportação sem duplicar.
+- **Integrações:** chaves de API (somente leitura ou leitura/escrita) e webhooks de saída assinados por evento.
+- **Auditoria** de todas as operações (quem, quando, o quê, IP), inclusive tentativas de acesso.
+
+## Executar no XAMPP (Windows)
+
+1. Coloque o projeto em `C:\xampp\htdocs\Otica-SD` e inicie Apache e MySQL.
+2. (Opcional) copie `app/config/local.example.php` para `app/config/local.php` e ajuste o banco.
+3. Prepare o banco: `C:\xampp\php\php.exe app\migrate.php` (cria o banco `ocular` se não existir).
+4. Acesse `http://localhost/Otica-SD/` — o administrador inicial é `admin@ocular.local` / `admin123` (altere a senha em *Meu perfil*).
+5. Para campanhas automáticas, automações e webhooks, deixe o processador rodando: `C:\xampp\php\php.exe app\worker.php` — ou agende `php app\worker.php --once` a cada minuto no Agendador de Tarefas.
+
+Dados de demonstração: `php app/scripts/seed_demo.php` cria a *Ótica Demonstração* (`demo@ocular.local` / `demo1234`).
+Nova ótica pela linha de comando: `php app/scripts/create_company.php --name="Ótica X" --owner-email=... --owner-password=... --logo=logo.jpg`.
+
+## Executar com Docker
 
 ```sh
 docker compose up --build -d
 ```
 
-Acesse http://localhost:8080. A primeira execução baixa as imagens e prepara o banco; pode levar alguns minutos.
+Acesse http://localhost:8080. Os serviços são `frontend` (Nginx), `api` (PHP/Apache, aplica as migrações ao iniciar), `worker` (campanhas, automações, webhooks) e `db` (MySQL 8.4). Variáveis úteis: `PUBLIC_URL` (endereço público da API para os webhooks), `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `DB_PASSWORD`.
 
-O Compose inicia estes serviços:
-
-| Serviço | Responsabilidade |
-| --- | --- |
-| `frontend` | Publica a interface e encaminha `/api/` |
-| `api` | Autentica usuários e executa as regras de negócio |
-| `worker` | Prepara lembretes em segundo plano a cada cinco minutos |
-| `db` | Armazena os dados no MySQL |
-
-| Perfil | E-mail | Senha |
-| --- | --- | --- |
-| Administrador geral | admin@sistema.test | admin123 |
-| Ótica Central | dono@otica.test | otica123 |
-| Ótica Horizonte | dono@segunda.test | otica123 |
-
-Todos os registros iniciais são fictícios. As credenciais são exclusivas desta demonstração local.
-
-Para parar sem apagar dados: `docker compose down`. O volume `mysql_data` preserva os cadastros. Alterações na API ou no worker exigem nova execução com `--build`; a interface é montada diretamente da pasta `app/public`.
-
-## Funcionalidades e regras
-
-- **Administração geral:** cadastro de óticas e de seus responsáveis, consulta das empresas e controle manual da assinatura como avaliação, ativa ou suspensa.
-- **Identidade da ótica:** cada responsável pode definir o nome e o logo exibidos no próprio ambiente.
-- **Clientes e CRM:** cadastro de telefone, e-mail, data de nascimento, próximo contato, observações e aceite para recebimento de mensagens. A data do aceite fica registrada e a listagem também apresenta a última compra.
-- **Interações:** histórico de contatos por WhatsApp, ligação, atendimento presencial, e-mail ou outro canal, com data, assunto e observações.
-- **Central de relacionamento:** lembretes de aniversário, renovação dos óculos, retirada, acompanhamento ou outro motivo, vinculados a clientes que autorizaram mensagens e marcados como pendentes ou concluídos.
-- **Preparação automática:** ao salvar um cliente, os lembretes de próximo contato e aniversário são criados imediatamente; uma venda agenda a renovação dos óculos para um ano após a data do pagamento; quando uma ordem chega à etapa pronta, a retirada também aparece na central na mesma hora. O worker repete a conferência a cada cinco minutos como garantia. Somente clientes com aceite e telefone entram nesse fluxo, e uma chave de origem evita duplicações.
-- **WhatsApp:** os atalhos abrem uma conversa no WhatsApp com o telefone cadastrado. O contato e o envio da mensagem são realizados manualmente; o protótipo não usa a API oficial do WhatsApp nem envia mensagens automaticamente.
-- **Parceiros:** cadastro de fornecedores e laboratórios. Produtos podem ser vinculados a um fornecedor, e ordens de serviço a um laboratório.
-- **Vendas e estoque:** cada venda aceita vários produtos e quantidades, registra a data do pagamento e agenda o relacionamento de renovação. Os preços vêm do banco, o total é calculado na API e o pagamento não pode superar o total.
-- **Ordens de serviço:** acompanhamento nas etapas recebida, enviada ao laboratório, em produção no laboratório, recebida do laboratório, pronta e entregue. Cada alteração cria um evento no histórico com data e observação.
-- **Painel:** clientes, estoque, vendas, valores a receber, aniversários dos próximos 30 dias, lembretes pendentes, ordens atrasadas e produtos com estoque baixo.
-- **Consulta rápida:** os indicadores do painel e as linhas das listagens abrem cards com as informações completas sem trocar de tela.
-
-Todas as consultas operacionais usam a empresa da sessão. IDs enviados pelo navegador não permitem acessar clientes, parceiros, produtos, ordens, interações ou lembretes de outra ótica. Empresas suspensas perdem o acesso operacional imediatamente, inclusive em sessões existentes.
-
-A venda, seus itens e todas as baixas de estoque são gravados em uma transação com bloqueio dos produtos, evitando vendas concorrentes acima do estoque disponível. Se um item falhar, nenhum estoque é alterado. As mudanças de etapa de uma ordem e seu evento de histórico também são gravados em uma única transação.
-
-O sistema usa senhas com `password_hash`, consultas parametrizadas, sessão HttpOnly/SameSite e token CSRF para alterações autenticadas.
-
-## API
-
-Endereço: `/api/index.php?action=RECURSO`. Entrada e saída JSON.
-
-| Recurso | Métodos | Finalidade |
-| --- | --- | --- |
-| login | POST | Autentica e estabelece a sessão |
-| me | GET | Retorna usuário, empresa e token CSRF |
-| logout | POST | Encerra a sessão |
-| companies | GET, POST, PATCH, DELETE | Administra óticas e assinaturas; exclusivo do administrador geral |
-| branding | GET, PATCH | Consulta e altera nome e logo; exclusivo do responsável da ótica |
-| dashboard | GET | Retorna indicadores da ótica |
-| clients | GET, POST, PATCH | Lista, cadastra e atualiza clientes |
-| partners | GET, POST | Lista e cadastra fornecedores e laboratórios |
-| products | GET, POST | Produtos, estoque e vínculo com fornecedor |
-| sales | GET, POST | Vendas e baixa de estoque |
-| orders | GET, POST, PATCH | Ordens, laboratório, etapa atual e histórico |
-| interactions | GET, POST | Histórico de contatos com clientes |
-| reminders | GET, POST, PATCH | Lembretes e alteração entre pendente e concluído |
-
-Requisições autenticadas de alteração exigem o cookie de sessão e o cabeçalho `X-CSRF-Token` retornado por `me`.
-
-## Roteiro de demonstração
-
-Com os contêineres em execução, use `python3 tests/smoke.py` para validar os fluxos originais e `python3 tests/crm_smoke.py` para validar clientes, parceiros, vínculos, interações, lembretes, ordens e isolamento entre óticas.
-
-Para confirmar o processamento em segundo plano, consulte o log após iniciar os serviços:
+## Desenvolvimento da interface
 
 ```sh
-docker compose logs --tail=20 worker
+cd web
+npm install
+npm run dev     # http://localhost:5173, com /api encaminhado para a API do XAMPP
+npm run build   # gera app/public
 ```
 
-As ações do cadastro e das ordens criam os lembretes imediatamente. O worker executa uma primeira verificação ao iniciar e depois repete o trabalho a cada cinco minutos para recuperar qualquer pendência. Os lembretes podem ser conferidos na **Central de relacionamento**. O aceite é desmarcado por padrão; marque-o no cadastro do cliente somente após receber a autorização.
+O build é versionado em `app/public` para que a instalação não precise de Node.
 
-1. Entre na Ótica Central e cadastre um cliente com aniversário, próximo contato e aceite para mensagens.
-2. Cadastre um fornecedor e um laboratório na área **Parceiros**.
-3. Cadastre um produto vinculado ao fornecedor, registre uma venda e confira o estoque e os indicadores.
-4. Registre uma interação com o cliente e crie um lembrete na central de relacionamento.
-5. Abra uma ordem vinculada ao laboratório e avance pelas seis etapas, observando o histórico.
-6. Use um atalho do WhatsApp e confirme que a conversa é aberta para realização manual do contato.
-7. Entre na Ótica Horizonte e confira que os dados da Central não aparecem.
-8. Entre como administrador geral, cadastre uma ótica e acesse com o responsável criado.
-9. Suspenda uma ótica e confirme que ela perde o acesso; reative para restaurá-lo.
+## Integração com WhatsApp
 
-## Limites e evolução
+Configure em **Configurações › Canais**. Cada canal mostra a URL de webhook a ser cadastrada no provedor:
 
-Assinaturas são administradas manualmente, sem cobrança real. O worker prepara os lembretes na tabela, mas não envia WhatsApp, e-mail ou qualquer outra mensagem. A integração com a API oficial do WhatsApp, emissão fiscal, recuperação de senha, filiais, funcionários e permissões adicionais, recebimentos posteriores e ajustes de estoque ficam para próximas etapas.
+| Modo | O que informar | Webhook |
+| --- | --- | --- |
+| Manual (wa.me) | nada | — |
+| Meta Cloud API (oficial) | Phone number ID, token, App secret, verify token | URL de callback + verify token no app da Meta (campo *messages*) |
+| Evolution API | URL do servidor, API key, instância | Webhook da instância com o evento `MESSAGES_UPSERT` |
+| Z-API | ID da instância, token, client token | Webhook "Ao receber" |
+| Instagram / Messenger | Page ID, token da página, App secret | Webhook da página (campo *messages*) |
 
-Os contêineres demonstram a comunicação entre interface, API, worker e banco, mas ainda não há fila de mensagens, replicação, alta disponibilidade nem sessões distribuídas.
+Fora da janela de 24 horas, a API oficial exige **modelos aprovados**: informe o nome do modelo da Meta em *Modelos de mensagem* para usá-lo nas campanhas.
 
-O endereço publicado fica restrito ao computador local. Para hospedagem real, será necessário preparar HTTPS, segredos próprios, backups, limitação de tentativas de login e gestão das sessões. `DB_PASSWORD` e `DB_ROOT_PASSWORD` permitem substituir as senhas de demonstração na criação inicial do banco.
+## API para outros sistemas
+
+`GET /api/index.php?action=clients|products|sales|quotes|service_orders|partners` com o cabeçalho `Authorization: Bearer ok_...` (chave criada em *Configurações › Integrações*). Webhooks de saída enviam `X-Ocular-Event` e `X-Ocular-Signature: sha256=HMAC(corpo, segredo)`.
+
+## Segurança
+
+Senhas com `password_hash`, consultas parametrizadas, sessão HttpOnly/SameSite, token CSRF, isolamento por ótica em todas as consultas (a ótica vem sempre da sessão), limitação de tentativas de login, validação de tipo real dos arquivos enviados e armazenamento dos anexos fora da pasta pública (com bloqueio por `.htaccess` em instalações Apache).
+
+## Testes
+
+`bash tests/smoke.sh` valida o fluxo principal contra a ótica de demonstração (cliente, venda com item livre e parcelas, OS, PDF, campanha sem duplicidade, cancelamento com estorno).
+
+Consulte o [guia da estrutura](docs/estrutura.md) e o [histórico de versões](CHANGELOG.md).
