@@ -68,6 +68,10 @@ database()->exec(
 $applied = array_column(fetchAllRows('SELECT version FROM schema_migrations'), 'version');
 $files = glob(__DIR__ . '/database/migrations/*.sql');
 sort($files);
+// MySQL 5.6 / MariaDB 10.1: índices utf8mb4 acima de 767 bytes só funcionam com ROW_FORMAT=DYNAMIC
+// (exige innodb_large_prefix, ligado nas hospedagens com Barracuda). A partir do 5.7 o padrão já é DYNAMIC.
+$serverVersion = (string) fetchValue('SELECT VERSION()');
+$legacyServer = !str_contains(strtolower($serverVersion), 'mariadb') && version_compare($serverVersion, '5.7', '<');
 foreach ($files as $file) {
     $version = basename($file, '.sql');
     if (in_array($version, $applied, true)) {
@@ -75,6 +79,9 @@ foreach ($files as $file) {
     }
     $sql = preg_replace('/^\s*--.*$/m', '', (string) file_get_contents($file));
     foreach (array_filter(array_map('trim', preg_split('/;\s*\n/', $sql))) as $statement) {
+        if ($legacyServer && preg_match('/^CREATE TABLE/i', $statement) && !stripos($statement, 'ROW_FORMAT')) {
+            $statement .= ' ROW_FORMAT=DYNAMIC';
+        }
         database()->exec($statement);
     }
     executeQuery('INSERT INTO schema_migrations (version) VALUES (?)', [$version]);
