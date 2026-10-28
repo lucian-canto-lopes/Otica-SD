@@ -4,6 +4,10 @@
 !.env.example
 !.env.sample
 
+# Arquivos enviados pelos usuários e configuração local da API
+app/storage/
+app/config/local.php
+
 # Dependências instaladas localmente
 node_modules/
 vendor/
@@ -21,6 +25,9 @@ __pycache__/
 *.py[cod]
 .venv/
 .pytest_cache/
+
+# Configurações locais do Claude Code
+.claude/settings.local.json
 
 # Configurações pessoais de editores
 .idea/

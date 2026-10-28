@@ -1,21 +1,38 @@
 <?php
 declare(strict_types=1);
 
-require __DIR__ . '/config/database.php';
-require __DIR__ . '/src/services/automatic_reminders.php';
+/*
+ * Processamento em segundo plano:
+ *  - a cada ciclo (1 min): campanhas automáticas e webhooks de saída;
+ *  - a cada 10 min: automações agendadas e geração de tarefas.
+ * Uso contínuo: php app/worker.php   ·   Execução única (agendador do Windows/cron): php app/worker.php --once
+ */
 
-$interval = max(30, (int) (getenv('REMINDER_WORKER_INTERVAL') ?: 300));
+require __DIR__ . '/src/bootstrap.php';
+
+$interval = max(20, (int) (getenv('WORKER_INTERVAL') ?: 60));
+$once = in_array('--once', $argv, true) || getenv('WORKER_ONCE') === '1';
+$lastHeavyRun = 0;
+
 do {
-    $nextRunIn = $interval;
+    $startedAt = time();
     try {
-        prepareAutomaticReminders();
-        error_log('Lembretes automáticos preparados em ' . date(DATE_ATOM));
+        $sent = processAutoCampaigns();
+        $delivered = processWebhookDeliveries();
+        if ($once || $startedAt - $lastHeavyRun >= 600) {
+            $executed = runScheduledAutomations();
+            generateTasks();
+            $lastHeavyRun = $startedAt;
+            error_log(sprintf('[worker] automações executadas: %d', $executed));
+        }
+        if ($sent || $delivered) {
+            error_log(sprintf('[worker] mensagens de campanha: %d · webhooks: %d', $sent, $delivered));
+        }
     } catch (Throwable $exception) {
-        error_log('Falha ao preparar lembretes: ' . $exception->getMessage());
-        $nextRunIn = 10;
+        error_log('[worker] falha: ' . $exception->getMessage());
     }
-    if (getenv('REMINDER_WORKER_ONCE') === '1') {
+    if ($once) {
         break;
     }
-    sleep($nextRunIn);
+    sleep(max(1, $interval - (time() - $startedAt)));
 } while (true);
