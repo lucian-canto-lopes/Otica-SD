@@ -32,6 +32,16 @@ Sistema multiótica: cada ótica tem seu ambiente isolado (clientes, vendas, est
 - **Integrações:** chaves de API (somente leitura ou leitura/escrita) e webhooks de saída assinados por evento.
 - **Auditoria** de todas as operações (quem, quando, o quê, IP), inclusive tentativas de acesso.
 
+## Acessos iniciais
+
+| Perfil | E-mail | Senha |
+| --- | --- | --- |
+| Superadmin da plataforma | admin@ocular.local | admin123 |
+| Ótica Luzir | luzir@ocular.local | luzir123 |
+| Ótica Demonstração (dados fictícios) | demo@ocular.local | demo1234 |
+
+O e-mail da Ótica Luzir é provisório. Troque esse e-mail e todas as senhas (em *Meu perfil* ou em *Plataforma › Usuários*) antes de usar o sistema com dados reais.
+
 ## Executar no XAMPP (Windows)
 
 1. Coloque o projeto em `C:\xampp\htdocs\Otica-SD` e inicie Apache e MySQL.
