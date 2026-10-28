@@ -428,6 +428,11 @@ td select {
   color: #345550;
   font-size: 12px;
 }
+.danger-action {
+  border: 1px solid #e8b8b4;
+  background: #fff0ef;
+  color: #a63831;
+}
 .order-history {
   min-width: 180px;
   white-space: normal;
@@ -736,6 +741,11 @@ dialog::backdrop {
 [data-theme='dark'] .table-action {
   background: #253a35;
   color: #dbe9e5;
+}
+[data-theme='dark'] .danger-action {
+  border-color: #75443f;
+  background: #422724;
+  color: #ffb4ad;
 }
 [data-theme='dark'] .order-history summary {
   color: #8acdbb;

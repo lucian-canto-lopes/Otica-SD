@@ -61,6 +61,7 @@ O worker é independente das requisições da interface. Assim, a preparação d
 ## Dados e relacionamentos
 
 - `companies` e `users` representam as óticas, o administrador geral e os responsáveis.
+- O administrador geral pode excluir uma ótica; a API apaga os registros vinculados em uma transação para não deixar dados parciais.
 - `clients` guarda telefone, e-mail, data de nascimento, próximo contato, observações, aceite para mensagens e a data desse aceite. A última compra é calculada ao consultar os clientes.
 - `partners` reúne fornecedores e laboratórios da ótica.
 - `products` pode apontar para um parceiro do tipo fornecedor.

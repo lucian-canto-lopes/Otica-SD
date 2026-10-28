@@ -144,12 +144,13 @@ export function renderRecordsTable(view, records) {
   switch (view) {
     case 'companies':
       return renderTable(
-        ['Ótica', 'Documento', 'Plano', 'Assinatura'],
+        ['Ótica', 'Documento', 'Plano', 'Assinatura', 'Ações'],
         records.map((record) => [
           displayText(record.name),
           displayText(record.document),
           displayText(record.plan),
           statusSelect(record, ['trial', 'active', 'blocked']),
+          `<button class="table-action danger-action" type="button" data-delete-company="${escapeHtml(record.id)}" aria-label="Excluir ${escapeHtml(record.name)}">Excluir</button>`,
         ]),
       );
     case 'clients':

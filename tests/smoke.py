@@ -182,9 +182,21 @@ def main():
     # Encerrar a sessão remove o acesso às operações.
     optical_client.call('logout', {})
     optical_client.call('clients', expected=401)
+
+    # Excluir uma ótica exige CSRF e remove também a conta responsável.
+    admin.call('companies', dict(id=company_id), method='DELETE', csrf=False, expected=403)
+    assert company_id in [int(company['id']) for company in admin.call('companies')]
+    admin.call('companies', dict(id=company_id), method='DELETE')
+    assert company_id not in [int(company['id']) for company in admin.call('companies')]
+    deleted_company = Client()
+    deleted_company.call(
+        'login',
+        dict(email=email, password='teste12345'),
+        expected=401,
+    )
     print(
         'PASS: login, CSRF, sale totals, stock rollback, '
-        'tenant isolation, orders, subscriptions, logout'
+        'tenant isolation, orders, subscriptions, company deletion, logout'
     )
 
 

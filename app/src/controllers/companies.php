@@ -25,6 +25,32 @@ function handleCompanies(string $method, array $input, bool $isPlatformAdmin): n
             )->fetchAll(),
         );
     }
+    if ($method === 'DELETE') {
+        $companyId = validatedInteger($input['id'] ?? 0);
+        database()->beginTransaction();
+        $company = executeQuery('SELECT id, name FROM companies WHERE id = ? FOR UPDATE', [
+            $companyId,
+        ])->fetch();
+        if (!$company) {
+            database()->rollBack();
+            sendError('Ótica não encontrada.', 404);
+        }
+
+        // A ordem respeita as referências entre os registros da ótica.
+        executeQuery('DELETE FROM order_events WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM sale_items WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM interactions WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM reminders WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM orders WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM sales WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM products WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM partners WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM clients WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM users WHERE company_id = ?', [$companyId]);
+        executeQuery('DELETE FROM companies WHERE id = ?', [$companyId]);
+        database()->commit();
+        sendJson(['ok' => true, 'name' => $company['name']]);
+    }
     $status = $input['status'] ?? 'trial';
     if (!in_array($status, ['trial', 'active', 'blocked'], true)) {
         sendError('Status inválido.');

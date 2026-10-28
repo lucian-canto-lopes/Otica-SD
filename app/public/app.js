@@ -1,7 +1,7 @@
 import { selectElement } from './js/utils.js?v=6';
 import { pageTitles, createButtonLabels } from './js/constants.js?v=6';
 import { requestApi, setSession } from './js/api.js?v=6';
-import { renderRecordsTable } from './js/tables.js?v=10';
+import { renderRecordsTable } from './js/tables.js?v=11';
 import { renderDashboard } from './js/dashboard.js?v=6';
 import { openRecordForm } from './js/forms.js?v=11';
 import { bindBrandingForm, renderBranding } from './js/branding.js?v=6';
@@ -117,7 +117,7 @@ async function loadPage(page = currentView) {
   const countLabel = countLabels[page] || 'registros';
   const pageHint =
     page === 'companies'
-      ? '<p class="hint">Gerencie o acesso das empresas. As assinaturas são controladas manualmente neste protótipo.</p>'
+      ? '<p class="hint">Gerencie o acesso das empresas. A exclusão remove permanentemente a ótica e todos os dados vinculados.</p>'
       : page === 'reminders'
         ? '<p class="hint">Os lembretes aparecem automaticamente para acompanhamento, aniversário, renovação um ano após o pagamento e retirada de ordens prontas.</p>'
         : '';
@@ -144,6 +144,29 @@ async function loadPage(page = currentView) {
       }
     };
   });
+  document.querySelectorAll('[data-delete-company]').forEach((button) => {
+    button.onclick = () => {
+      const record = records.find((item) => String(item.id) === button.dataset.deleteCompany);
+      if (record) deleteCompany(record, button).catch(showNotice);
+    };
+  });
+}
+
+async function deleteCompany(company, button) {
+  const confirmed = window.confirm(
+    `Excluir a ótica “${company.name}”? Todos os usuários e dados vinculados serão apagados permanentemente.`,
+  );
+  if (!confirmed) return;
+
+  button.disabled = true;
+  try {
+    await requestApi('companies', { id: company.id }, 'DELETE');
+    await loadPage('companies');
+    showNotice(`Ótica “${company.name}” excluída.`);
+  } catch (error) {
+    button.disabled = false;
+    throw error;
+  }
 }
 
 async function updateStatus(select, page) {

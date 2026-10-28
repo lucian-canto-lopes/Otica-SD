@@ -66,7 +66,7 @@ Endereço: `/api/index.php?action=RECURSO`. Entrada e saída JSON.
 | login | POST | Autentica e estabelece a sessão |
 | me | GET | Retorna usuário, empresa e token CSRF |
 | logout | POST | Encerra a sessão |
-| companies | GET, POST, PATCH | Administra óticas e assinaturas; exclusivo do administrador geral |
+| companies | GET, POST, PATCH, DELETE | Administra óticas e assinaturas; exclusivo do administrador geral |
 | branding | GET, PATCH | Consulta e altera nome e logo; exclusivo do responsável da ótica |
 | dashboard | GET | Retorna indicadores da ótica |
 | clients | GET, POST, PATCH | Lista, cadastra e atualiza clientes |

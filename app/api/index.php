@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/bootstrap.php';
 try {
     $action = $_GET['action'] ?? 'me';
     $method = $_SERVER['REQUEST_METHOD'];
-    if (!in_array($method, ['GET', 'POST', 'PATCH'], true)) {
+    if (!in_array($method, ['GET', 'POST', 'PATCH', 'DELETE'], true)) {
         sendError('Método não permitido.', 405);
     }
     $input = readJsonInput($method);
