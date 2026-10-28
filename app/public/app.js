@@ -1,10 +1,11 @@
 import { selectElement } from './js/utils.js?v=6';
 import { pageTitles, createButtonLabels } from './js/constants.js?v=6';
 import { requestApi, setSession } from './js/api.js?v=6';
-import { renderRecordsTable } from './js/tables.js?v=11';
-import { renderDashboard } from './js/dashboard.js?v=6';
+import { renderRecordsTable } from './js/tables.js?v=12';
+import { renderDashboard } from './js/dashboard.js?v=7';
 import { openRecordForm } from './js/forms.js?v=11';
 import { bindBrandingForm, renderBranding } from './js/branding.js?v=6';
+import { renderRecordDetails, renderRecordCollection } from './js/details.js?v=1';
 
 let currentView;
 let currentSession;
@@ -93,6 +94,10 @@ async function loadPage(page = currentView) {
     const indicators = await requestApi('dashboard');
     const orders = await requestApi('orders');
     selectElement('#content').innerHTML = renderDashboard(indicators, orders);
+    bindRecordDetailRows('orders', orders);
+    document.querySelectorAll('[data-dashboard-card]').forEach((card) => {
+      card.onclick = () => openDashboardDetails(card.dataset.dashboardCard).catch(showNotice);
+    });
     return;
   }
 
@@ -130,6 +135,7 @@ async function loadPage(page = currentView) {
     ${pageHint}
   `;
   selectElement('#new').onclick = () => openRecordForm(page).catch(showNotice);
+  bindRecordDetailRows(page, records);
   document.querySelectorAll('[data-status]').forEach((select) => {
     select.onchange = () => updateStatus(select, page).catch(showNotice);
   });
@@ -150,6 +156,95 @@ async function loadPage(page = currentView) {
       if (record) deleteCompany(record, button).catch(showNotice);
     };
   });
+}
+
+function openDetails(title, content) {
+  selectElement('#details-title').textContent = title;
+  selectElement('#details-content').innerHTML = content;
+  selectElement('#details-modal').showModal();
+}
+
+function bindRecordDetailRows(view, records) {
+  document.querySelectorAll('[data-record-id]').forEach((row) => {
+    const openRecord = (event) => {
+      if (
+        event.target !== row &&
+        event.target.closest('button, select, a, input, summary, details')
+      ) {
+        return;
+      }
+      if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
+      if (event.type === 'keydown') event.preventDefault();
+
+      const record = records.find((item) => String(item.id) === row.dataset.recordId);
+      if (!record) return;
+      const details = renderRecordDetails(view, record);
+      openDetails(details.title, details.content);
+    };
+    row.onclick = openRecord;
+    row.onkeydown = openRecord;
+  });
+}
+
+function daysUntilBirthday(value) {
+  const match = String(value || '').match(/^\d{4}-(\d{2})-(\d{2})$/);
+  if (!match) return Number.POSITIVE_INFINITY;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let birthday = new Date(today.getFullYear(), Number(match[1]) - 1, Number(match[2]));
+  if (birthday < today) {
+    birthday = new Date(today.getFullYear() + 1, Number(match[1]) - 1, Number(match[2]));
+  }
+  return Math.round((birthday.getTime() - today.getTime()) / 86_400_000);
+}
+
+async function openDashboardDetails(key) {
+  const today = new Date();
+  const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 10);
+  const definitions = {
+    clients: { title: 'Clientes cadastrados', action: 'clients', view: 'clients' },
+    products: { title: 'Peças em estoque', action: 'products', view: 'products' },
+    revenue: { title: 'Vendas acumuladas', action: 'sales', view: 'sales' },
+    receivable: {
+      title: 'Valores a receber',
+      action: 'sales',
+      view: 'sales',
+      filter: (record) => Number(record.total) > Number(record.paid),
+    },
+    upcoming_birthdays: {
+      title: 'Próximos aniversários',
+      action: 'clients',
+      view: 'clients',
+      filter: (record) => daysUntilBirthday(record.birth_date) <= 30,
+    },
+    pending_reminders: {
+      title: 'Lembretes pendentes',
+      action: 'reminders',
+      view: 'reminders',
+      filter: (record) => record.status === 'pending',
+    },
+    overdue_orders: {
+      title: 'Ordens atrasadas',
+      action: 'orders',
+      view: 'orders',
+      filter: (record) => record.delivery < localToday && record.status !== 'delivered',
+    },
+    low_stock: {
+      title: 'Produtos com estoque baixo',
+      action: 'products',
+      view: 'products',
+      filter: (record) => Number(record.stock) <= 3,
+    },
+  };
+  const definition = definitions[key];
+  if (!definition) return;
+
+  let records = await requestApi(definition.action);
+  if (definition.filter) records = records.filter(definition.filter);
+  openDetails(definition.title, renderRecordCollection(definition.view, records));
 }
 
 async function deleteCompany(company, button) {
@@ -271,6 +366,7 @@ function bindEvents() {
   selectElement('#record-form').onsubmit = saveRecord;
   selectElement('#login-form').onsubmit = submitLogin;
   selectElement('#close-modal').onclick = () => selectElement('#modal').close();
+  selectElement('#close-details').onclick = () => selectElement('#details-modal').close();
   selectElement('#logout').onclick = logout;
 }
 

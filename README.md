@@ -50,6 +50,7 @@ Para parar sem apagar dados: `docker compose down`. O volume `mysql_data` preser
 - **Vendas e estoque:** cada venda aceita vários produtos e quantidades, registra a data do pagamento e agenda o relacionamento de renovação. Os preços vêm do banco, o total é calculado na API e o pagamento não pode superar o total.
 - **Ordens de serviço:** acompanhamento nas etapas recebida, enviada ao laboratório, em produção no laboratório, recebida do laboratório, pronta e entregue. Cada alteração cria um evento no histórico com data e observação.
 - **Painel:** clientes, estoque, vendas, valores a receber, aniversários dos próximos 30 dias, lembretes pendentes, ordens atrasadas e produtos com estoque baixo.
+- **Consulta rápida:** os indicadores do painel e as linhas das listagens abrem cards com as informações completas sem trocar de tela.
 
 Todas as consultas operacionais usam a empresa da sessão. IDs enviados pelo navegador não permitem acessar clientes, parceiros, produtos, ordens, interações ou lembretes de outra ótica. Empresas suspensas perdem o acesso operacional imediatamente, inclusive em sessões existentes.
 

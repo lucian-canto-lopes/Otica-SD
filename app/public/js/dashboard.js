@@ -1,6 +1,6 @@
 import { escapeHtml, formatMoney, formatDate } from './utils.js?v=6';
 import { statusLabels } from './constants.js?v=6';
-import { renderTable } from './tables.js?v=7';
+import { renderTable } from './tables.js?v=12';
 
 function indicatorCount(value) {
   return escapeHtml(Array.isArray(value) ? value.length : (value ?? 0));
@@ -9,21 +9,25 @@ function indicatorCount(value) {
 export function renderDashboard(indicators, orders) {
   const cards = [
     {
+      key: 'clients',
       label: 'Clientes',
       value: indicatorCount(indicators.clients),
       description: 'Relacionamentos cadastrados',
     },
     {
+      key: 'products',
       label: 'Peças em estoque',
       value: indicatorCount(indicators.products),
       description: 'Disponíveis para venda',
     },
     {
+      key: 'revenue',
       label: 'Vendas acumuladas',
       value: formatMoney(indicators.revenue),
       description: 'Total registrado',
     },
     {
+      key: 'receivable',
       label: 'A receber',
       value: formatMoney(indicators.receivable),
       description: 'Saldo das vendas',
@@ -59,23 +63,23 @@ export function renderDashboard(indicators, orders) {
   const cardsHtml = cards
     .map(
       (card) => `
-    <article class="card">
+    <button class="card dashboard-card" type="button" data-dashboard-card="${card.key}">
       <span>${card.label}</span>
       <strong>${card.value}</strong>
       <small>${card.description}</small>
-    </article>
+    </button>
   `,
     )
     .join('');
-  const upcomingDeliveries = orders
+  const upcomingOrders = orders
     .filter((order) => order.status !== 'delivered')
-    .sort((first, second) => String(first.delivery).localeCompare(String(second.delivery)))
-    .map((order) => [
-      escapeHtml(order.client),
-      escapeHtml(order.description),
-      formatDate(order.delivery),
-      `<span class="badge">${escapeHtml(statusLabels[order.status] || order.status)}</span>`,
-    ]);
+    .sort((first, second) => String(first.delivery).localeCompare(String(second.delivery)));
+  const upcomingDeliveries = upcomingOrders.map((order) => [
+    escapeHtml(order.client),
+    escapeHtml(order.description),
+    formatDate(order.delivery),
+    `<span class="badge">${escapeHtml(statusLabels[order.status] || order.status)}</span>`,
+  ]);
   return `
     <section class="welcome">
       <div>
@@ -86,6 +90,10 @@ export function renderDashboard(indicators, orders) {
     </section>
     <div class="cards">${cardsHtml}</div>
     <div class="toolbar"><h2>Próximas entregas</h2></div>
-    ${renderTable(['Cliente', 'Serviço', 'Previsão', 'Etapa'], upcomingDeliveries)}
+    ${renderTable(
+      ['Cliente', 'Serviço', 'Previsão', 'Etapa'],
+      upcomingDeliveries,
+      upcomingOrders.map((order) => order.id),
+    )}
   `;
 }

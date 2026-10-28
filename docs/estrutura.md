@@ -112,6 +112,8 @@ Cada alteração de etapa atualiza a ordem e inclui um registro em `order_events
 
 `dashboard.php` calcula os totais de clientes, peças em estoque, vendas e valores a receber. A evolução de CRM acrescenta aniversários nos próximos 30 dias, lembretes pendentes, ordens atrasadas e produtos com três unidades ou menos. A interface também lista ordens ainda não entregues pela previsão de entrega.
 
+Os indicadores e as linhas das tabelas são interativos. `details.js` transforma os registros já carregados em cards de detalhes; nos indicadores agregados, `app.js` consulta a coleção relacionada e aplica o mesmo critério do painel antes de abrir o card. Controles internos como edição, status, exclusão e WhatsApp não disparam a visualização de detalhes.
+
 ## Endpoints da evolução de CRM
 
 - `partners`: `GET` lista e `POST` cadastra fornecedores ou laboratórios.

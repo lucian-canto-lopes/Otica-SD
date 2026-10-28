@@ -6,7 +6,7 @@ import {
   statusLabels,
 } from './constants.js?v=6';
 
-export function renderTable(headers, rows) {
+export function renderTable(headers, rows, recordIds = []) {
   const headings = headers.map((heading) => `<th>${heading}</th>`).join('');
   const emptyRow = `
     <tr><td colspan="${headers.length}" class="empty">
@@ -14,7 +14,16 @@ export function renderTable(headers, rows) {
     </td></tr>
   `;
   const body = rows.length
-    ? rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join('')}</tr>`).join('')
+    ? rows
+        .map((row, index) => {
+          const recordId = recordIds[index];
+          const attributes =
+            recordId === undefined
+              ? ''
+              : ` data-record-id="${escapeHtml(recordId)}" tabindex="0" aria-label="Ver detalhes deste registro"`;
+          return `<tr${attributes}>${row.map((cell) => `<td>${cell}</td>`).join('')}</tr>`;
+        })
+        .join('')
     : emptyRow;
 
   return `
@@ -141,6 +150,7 @@ function orderHistoryCell(history) {
 }
 
 export function renderRecordsTable(view, records) {
+  const recordIds = records.map((record) => record.id);
   switch (view) {
     case 'companies':
       return renderTable(
@@ -152,6 +162,7 @@ export function renderRecordsTable(view, records) {
           statusSelect(record, ['trial', 'active', 'blocked']),
           `<button class="table-action danger-action" type="button" data-delete-company="${escapeHtml(record.id)}" aria-label="Excluir ${escapeHtml(record.name)}">Excluir</button>`,
         ]),
+        recordIds,
       );
     case 'clients':
       return renderTable(
@@ -177,6 +188,7 @@ export function renderRecordsTable(view, records) {
           displayText(record.notes),
           `<button class="table-action" type="button" data-edit="${escapeHtml(record.id)}" data-edit-phone="${escapeHtml(record.phone || record.client_phone || '')}">Editar</button>`,
         ]),
+        recordIds,
       );
     case 'interactions':
       return renderTable(
@@ -189,6 +201,7 @@ export function renderRecordsTable(view, records) {
           displayText(record.notes),
           contactCell(record),
         ]),
+        recordIds,
       );
     case 'reminders':
       return renderTable(
@@ -201,6 +214,7 @@ export function renderRecordsTable(view, records) {
           contactCell(record),
           statusSelect(record, ['pending', 'completed']),
         ]),
+        recordIds,
       );
     case 'partners':
       return renderTable(
@@ -213,6 +227,7 @@ export function renderRecordsTable(view, records) {
           displayText(record.email),
           displayText(record.notes),
         ]),
+        recordIds,
       );
     case 'products':
       return renderTable(
@@ -224,6 +239,7 @@ export function renderRecordsTable(view, records) {
           formatMoney(record.price),
           `${escapeHtml(record.stock)} un.`,
         ]),
+        recordIds,
       );
     case 'sales':
       return renderTable(
@@ -238,6 +254,7 @@ export function renderRecordsTable(view, records) {
           formatMoney(record.paid),
           formatMoney(record.total - record.paid),
         ]),
+        recordIds,
       );
     case 'orders':
       return renderTable(
@@ -268,6 +285,7 @@ export function renderRecordsTable(view, records) {
             'delivered',
           ]),
         ]),
+        recordIds,
       );
   }
 }
