@@ -8,6 +8,10 @@ x-api-env: &api-env
   ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ocular.local}
   ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
   TZ: America/Sao_Paulo
+  # WhatsApp integrado: servidor Evolution API deste compose (rede interna).
+  EVOLUTION_URL: http://evolution:8080
+  EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-troque-esta-chave-evolution}
+  EVOLUTION_WEBHOOK_BASE: http://api
 
 services:
   frontend:
@@ -33,7 +37,7 @@ services:
     restart: unless-stopped
     environment:
       <<: *api-env
-      WORKER_INTERVAL: 60
+      WORKER_INTERVAL: 15
     volumes:
       - uploads:/var/www/storage
     depends_on:
@@ -56,6 +60,56 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
+  # Evolution API: conecta o WhatsApp da ótica por QR Code. As instâncias são criadas pelo Ocular.
+  evolution:
+    image: atendai/evolution-api:v2.2.3
+    restart: unless-stopped
+    ports:
+      # Apenas local: o XAMPP acessa por http://127.0.0.1:8081. Não exponha esta porta na internet.
+      - "127.0.0.1:8081:8080"
+    environment:
+      SERVER_URL: http://evolution:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-troque-esta-chave-evolution}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_PASSWORD:-evolution_demo_123}@evolution-db:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: ocular
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      # O histórico de conversas fica no Ocular; a Evolution guarda só a sessão.
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      CONFIG_SESSION_PHONE_CLIENT: Ocular CRM
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: 30
+      DEL_INSTANCE: "false"
+      LANGUAGE: pt-BR
+      LOG_LEVEL: ERROR,WARN
+      TZ: America/Sao_Paulo
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      evolution-db:
+        condition: service_healthy
+  evolution-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${EVOLUTION_DB_PASSWORD:-evolution_demo_123}
+    volumes:
+      - evolution_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 volumes:
   mysql_data:
   uploads:
+  evolution_instances:
+  evolution_db:

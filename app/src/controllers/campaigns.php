@@ -74,6 +74,10 @@ function handleCampaigns(string $method, array $input): never
         ) ?? sendError('Campanha não encontrada.', 404);
         $campaign['audience'] = decodeJsonColumn($campaign['audience'], new stdClass());
         $campaign['counts'] = campaignCounts($id);
+        $channel = $campaign['channel_id'] ? fetchOne('SELECT * FROM channels WHERE id = ?', [$campaign['channel_id']]) : defaultChannel($companyId);
+        $campaign['channel_type'] ??= $channel['type'] ?? null;
+        $campaign['safe_sending'] = isUnofficialChannel($channel);
+        $campaign['channel_safety'] = $channel ? channelSafetySummary($channel) : [];
         sendJson($campaign);
     }
     if ($method === 'GET') {
@@ -115,6 +119,7 @@ function handleCampaigns(string $method, array $input): never
             $audience['contacted_last_days_exclude'] = (int) $input['skip_recent_days'];
         }
         [$where, $params] = buildClientFilter($audience, $companyId);
+        $where .= ' AND c.message_opt_out_at IS NULL';
         $total = (int) fetchValue("SELECT COUNT(*) FROM clients c WHERE {$where}", $params);
         $sample = fetchAllRows("SELECT c.id, c.name, c.whatsapp, c.city FROM clients c WHERE {$where} ORDER BY c.name LIMIT 8", $params);
         $company = Context::$company;
@@ -134,7 +139,7 @@ function handleCampaigns(string $method, array $input): never
                     buildCampaignRecipients($campaign);
                 }
                 $status = $campaign['scheduled_at'] && strtotime($campaign['scheduled_at']) > time() ? 'scheduled' : 'running';
-                executeQuery('UPDATE campaigns SET status = ?, started_at = COALESCE(started_at, NOW()) WHERE id = ?', [$status, $id]);
+                executeQuery("UPDATE campaigns SET status = ?, started_at = COALESCE(started_at, NOW()), next_send_at = NULL, sent_in_batch = 0, pause_reason = '' WHERE id = ?", [$status, $id]);
                 auditLog('start', 'campaign', $id, 'Campanha iniciada: ' . $campaign['name']);
                 sendJson(['ok' => true, 'status' => $status]);
             case 'pause':
@@ -142,7 +147,11 @@ function handleCampaigns(string $method, array $input): never
             case 'cancel':
             case 'complete':
                 $status = ['pause' => 'paused', 'resume' => 'running', 'cancel' => 'cancelled', 'complete' => 'completed'][$action];
-                executeQuery('UPDATE campaigns SET status = ?, finished_at = IF(? IN (\'cancelled\', \'completed\'), NOW(), finished_at) WHERE id = ?', [$status, $status, $id]);
+                executeQuery(
+                    "UPDATE campaigns SET status = ?, finished_at = IF(? IN ('cancelled', 'completed'), NOW(), finished_at), pause_reason = '',
+                            next_send_at = IF(? = 'running', NULL, next_send_at) WHERE id = ?",
+                    [$status, $status, $status, $id],
+                );
                 auditLog($action, 'campaign', $id, 'Campanha ' . $campaign['name'] . ': ' . $status);
                 sendJson(['ok' => true]);
             case 'mark':
@@ -181,8 +190,8 @@ function handleCampaigns(string $method, array $input): never
                 if (!$channel || $channel['type'] === 'whatsapp_manual') {
                     sendError('Esta campanha usa envio manual: abra o WhatsApp e marque como enviado.');
                 }
-                $result = sendCampaignRecipient($campaign, $recipient, $channel);
-                sendJson(['ok' => $result['ok'], 'error' => $result['error'] ?? '', 'counts' => campaignCounts($id)]);
+                $result = sendCampaignRecipient($campaign, $recipient, $channel, true);
+                sendJson(['ok' => $result['ok'], 'error' => $result['error'] ?? '', 'skipped' => !empty($result['skipped']), 'counts' => campaignCounts($id)]);
             case 'retry_failed':
                 executeQuery("UPDATE campaign_recipients SET status = 'pending', error = '' WHERE campaign_id = ? AND status = 'failed'", [$id]);
                 sendJson(['ok' => true, 'counts' => campaignCounts($id)]);
@@ -214,8 +223,15 @@ function handleCampaigns(string $method, array $input): never
         'send_window_start' => preg_match('/^\d{2}:\d{2}$/', (string) ($input['send_window_start'] ?? '')) ? $input['send_window_start'] . ':00' : '08:00:00',
         'send_window_end' => preg_match('/^\d{2}:\d{2}$/', (string) ($input['send_window_end'] ?? '')) ? $input['send_window_end'] . ':00' : '20:00:00',
         'per_minute' => max(1, min(60, (int) ($input['per_minute'] ?? 10))),
+        // Ritmo do envio seguro (WhatsApp por QR Code). Valores fora da faixa segura são ajustados.
+        'min_interval_seconds' => max(30, min(900, (int) ($input['min_interval_seconds'] ?? 45))),
+        'max_interval_seconds' => max(30, min(1800, (int) ($input['max_interval_seconds'] ?? 120))),
+        'batch_size' => max(5, min(50, (int) ($input['batch_size'] ?? 20))),
+        'batch_pause_minutes' => max(5, min(180, (int) ($input['batch_pause_minutes'] ?? 15))),
+        'opt_out_footer' => array_key_exists('opt_out_footer', $input) ? booleanValue($input, 'opt_out_footer') : 1,
         'skip_recent_days' => max(0, (int) ($input['skip_recent_days'] ?? 0)),
     ];
+    $values['max_interval_seconds'] = max($values['min_interval_seconds'], $values['max_interval_seconds']);
     if ($method === 'PATCH') {
         $campaign = requireCompanyRecord('campaigns', requireRouteId(), $companyId, 'Campanha');
         updateRow('campaigns', (int) $campaign['id'], $companyId, $values);

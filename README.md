@@ -74,13 +74,34 @@ O build é versionado em `app/public` para que a instalação não precise de No
 
 ## Integração com WhatsApp
 
+### WhatsApp integrado (Evolution API inclusa)
+
+O `compose.yaml` já traz o serviço `evolution` (Evolution API v2 com banco próprio). Com ele ativo, a ótica cria um canal **WhatsApp por QR Code › WhatsApp integrado**, clica em **Conectar** e lê o QR Code (ou digita o código de pareamento) no celular. O Ocular cria a instância, configura o webhook e acompanha se o número está conectado.
+
+- **Docker:** defina `EVOLUTION_API_KEY` (e `EVOLUTION_DB_PASSWORD`) no `.env` e rode `docker compose up -d`.
+- **XAMPP:** a Evolution API precisa do Docker Desktop. Rode só ela com `docker compose up -d evolution` e, em `app/config/local.php`, informe `EVOLUTION_URL` (`http://127.0.0.1:8081`), `EVOLUTION_API_KEY` e `EVOLUTION_WEBHOOK_BASE` (`http://host.docker.internal/Otica-SD/app/public/api`). Deixe o processador (`app\worker.php`) rodando.
+
+### Envio seguro de campanhas (WhatsApp por QR Code)
+
+A Meta bloqueia números que se comportam como disparadores. Campanhas pelos canais Evolution e Z-API seguem regras fixas para reduzir esse risco:
+
+- **Aquecimento:** número recém-conectado envia até 30 mensagens automáticas por dia, subindo para 60 (dia 4), 100 (dia 8), 180 (dia 15) e 250 (dia 31). O limite pode ser definido no canal.
+- **Ritmo:** uma mensagem por vez no número, com intervalo aleatório (padrão 45–120 s) e pausa longa a cada lote (padrão 15 min a cada 20). Duas campanhas no mesmo número não somam velocidade.
+- **Qualidade do público:** números sem WhatsApp são pulados antes do envio; quem já conversou com a ótica recebe primeiro; o aceite de mensagens vem marcado por padrão.
+- **Descadastro:** rodapé "responda SAIR"; quem responde SAIR, PARAR, STOP etc. perde o aceite, sai das campanhas pendentes e recebe uma confirmação.
+- **Pausa automática** se o WhatsApp desconectar ou se as falhas se acumularem.
+
+Nada disso garante que a Meta não bloqueie o número. Para volume alto, use a API oficial (Meta Cloud).
+
+### Outros provedores
+
 Configure em **Configurações › Canais**. Cada canal mostra a URL de webhook a ser cadastrada no provedor:
 
 | Modo | O que informar | Webhook |
 | --- | --- | --- |
 | Manual (wa.me) | nada | — |
 | Meta Cloud API (oficial) | Phone number ID, token, App secret, verify token | URL de callback + verify token no app da Meta (campo *messages*) |
-| Evolution API | URL do servidor, API key, instância | Webhook da instância com o evento `MESSAGES_UPSERT` |
+| Evolution API (servidor próprio) | URL do servidor, API key, instância | Configurado ao clicar em **Conectar** (eventos `MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `CONNECTION_UPDATE`) |
 | Z-API | ID da instância, token, client token | Webhook "Ao receber" |
 | Instagram / Messenger | Page ID, token da página, App secret | Webhook da página (campo *messages*) |
 

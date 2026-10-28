@@ -3,14 +3,15 @@ declare(strict_types=1);
 
 /*
  * Processamento em segundo plano:
- *  - a cada ciclo (1 min): campanhas automáticas e webhooks de saída;
+ *  - a cada ciclo (15 s): campanhas automáticas e webhooks de saída. O ciclo curto permite que o envio
+ *    seguro pelo WhatsApp respeite intervalos aleatórios entre as mensagens;
  *  - a cada 10 min: automações agendadas e geração de tarefas.
  * Uso contínuo: php app/worker.php   ·   Execução única (agendador do Windows/cron): php app/worker.php --once
  */
 
 require __DIR__ . '/src/bootstrap.php';
 
-$interval = max(20, (int) (getenv('WORKER_INTERVAL') ?: 60));
+$interval = max(10, (int) (getenv('WORKER_INTERVAL') ?: 15));
 $once = in_array('--once', $argv, true) || getenv('WORKER_ONCE') === '1';
 $lastHeavyRun = 0;
 

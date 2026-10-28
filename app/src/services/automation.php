@@ -347,9 +347,10 @@ function buildCampaignRecipients(array $campaign): int
     }
     [$where, $params] = buildClientFilter($audience, $companyId);
     $computed = clientComputedColumns();
+    // Quem pediu para sair nunca entra em campanha, mesmo sem o filtro de aceite.
     $clients = fetchAllRows(
         "SELECT c.*, {$computed['last_purchase']} AS last_purchase, {$computed['prescription_expires_at']} AS prescription_expires_at
-         FROM clients c WHERE {$where} AND NOT EXISTS (SELECT 1 FROM campaign_recipients cr WHERE cr.campaign_id = ? AND cr.client_id = c.id)
+         FROM clients c WHERE {$where} AND c.message_opt_out_at IS NULL AND NOT EXISTS (SELECT 1 FROM campaign_recipients cr WHERE cr.campaign_id = ? AND cr.client_id = c.id)
          LIMIT 20000",
         [...$params, $campaign['id']],
     );
@@ -365,10 +366,14 @@ function buildCampaignRecipients(array $campaign): int
     return $added;
 }
 
-/** Envia as campanhas automáticas em andamento, respeitando janela de horário e limite por minuto. */
+/**
+ * Envia as campanhas automáticas em andamento, respeitando a janela de horário. Canais oficiais seguem o
+ * limite por minuto; canais não oficiais seguem o envio seguro (safe_sending.php).
+ */
 function processAutoCampaigns(): int
 {
     $sent = 0;
+    $busyChannels = [];
     $campaigns = fetchAllRows(
         "SELECT ca.* FROM campaigns ca JOIN companies co ON co.id = ca.company_id
          WHERE co.status IN ('trial', 'active') AND ca.mode = 'auto'
@@ -387,9 +392,22 @@ function processAutoCampaigns(): int
         if (!$channel || $channel['type'] === 'whatsapp_manual' || $channel['status'] === 'inactive') {
             continue;
         }
+        if (isUnofficialChannel($channel)) {
+            $sent += processSafeCampaign($campaign, $channel, $busyChannels);
+            continue;
+        }
+        // O worker roda várias vezes por minuto: o limite por minuto vale para a janela do último minuto.
+        $sentLastMinute = (int) fetchValue(
+            "SELECT COUNT(*) FROM campaign_recipients WHERE campaign_id = ? AND status IN ('sent', 'replied') AND sent_at >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)",
+            [$campaign['id']],
+        );
+        $quota = min(60, (int) $campaign['per_minute']) - $sentLastMinute;
+        if ($quota <= 0) {
+            continue;
+        }
         $recipients = fetchAllRows(
             "SELECT cr.*, c.name FROM campaign_recipients cr JOIN clients c ON c.id = cr.client_id
-             WHERE cr.campaign_id = ? AND cr.status = 'pending' ORDER BY cr.id LIMIT " . max(1, min(60, (int) $campaign['per_minute'])),
+             WHERE cr.campaign_id = ? AND cr.status = 'pending' AND c.message_opt_out_at IS NULL ORDER BY cr.id LIMIT " . $quota,
             [$campaign['id']],
         );
         if (!$recipients) {
@@ -404,9 +422,18 @@ function processAutoCampaigns(): int
     return $sent;
 }
 
-function sendCampaignRecipient(array $campaign, array $recipient, array $channel): array
+function sendCampaignRecipient(array $campaign, array $recipient, array $channel, bool $manual = false): array
 {
     $companyId = (int) $campaign['company_id'];
+    if (isUnofficialChannel($channel)) {
+        $guard = guardUnofficialSend($channel, $recipient, $manual);
+        if (!$guard['ok']) {
+            if (!empty($guard['skip'])) {
+                executeQuery("UPDATE campaign_recipients SET status = 'skipped', error = ? WHERE id = ? AND status IN ('pending', 'failed')", [$guard['error'], $recipient['id']]);
+            }
+            return ['ok' => false, 'error' => $guard['error'], 'skipped' => !empty($guard['skip'])];
+        }
+    }
     // Marca como "na fila" antes do envio para que dois processos não enviem o mesmo destinatário.
     $claimed = executeQuery("UPDATE campaign_recipients SET status = 'queued' WHERE id = ? AND status IN ('pending', 'failed')", [$recipient['id']])->rowCount();
     if (!$claimed) {
@@ -420,7 +447,12 @@ function sendCampaignRecipient(array $campaign, array $recipient, array $channel
             $options += ['template' => $template['meta_template_name'], 'language' => $template['meta_language'], 'template_params' => [$recipient['rendered_message']]];
         }
     }
-    $result = sendConversationMessage($conversation, (string) $recipient['rendered_message'], $options);
+    // Modelos da Meta não aceitam quebra de linha nos parâmetros; nos demais casos vai o rodapé de descadastro.
+    $body = (string) $recipient['rendered_message'];
+    if ((int) ($campaign['opt_out_footer'] ?? 1) === 1 && empty($options['template'])) {
+        $body = withOptOutFooter($body);
+    }
+    $result = sendConversationMessage($conversation, $body, $options);
     executeQuery(
         'UPDATE campaign_recipients SET status = ?, sent_at = ?, message_id = ?, error = ?, sent_by = ? WHERE id = ?',
         [$result['ok'] ? 'sent' : 'failed', $result['ok'] ? date('Y-m-d H:i:s') : null, $result['id'], mb_substr((string) $result['error'], 0, 500), Context::userId(), $recipient['id']],

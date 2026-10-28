@@ -236,6 +236,7 @@ function publicChannel(array $channel): array
             $config[$field] = '••••' . substr((string) $config[$field], -4);
         }
     }
+    $channel['safety'] = channelSafetySummary($channel);
     $channel['config'] = $config;
     $channel['type_label'] = CHANNEL_TYPES[$channel['type']]['label'] ?? $channel['type'];
     $base = appConfig('PUBLIC_URL') ?: ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . dirname($_SERVER['SCRIPT_NAME'] ?? '/api/index.php'));
@@ -248,11 +249,14 @@ function handleChannels(string $method, array $input): never
     $companyId = Context::companyId();
     if ($method === 'GET') {
         $channels = array_map('publicChannel', fetchAllRows('SELECT * FROM channels WHERE company_id = ? ORDER BY is_default DESC, id', [$companyId]));
-        sendJson(['channels' => $channels, 'types' => CHANNEL_TYPES]);
+        sendJson(['channels' => $channels, 'types' => CHANNEL_TYPES, 'evolution_available' => evolutionServerConfigured(), 'warmup_steps' => WARMUP_STEPS]);
     }
     requirePermission('manage');
     if ($method === 'DELETE') {
         $channel = requireCompanyRecord('channels', requireRouteId(), $companyId, 'Canal');
+        if ($channel['type'] === 'whatsapp_evolution' && evolutionTarget($channel)['managed']) {
+            evolutionLogout($channel);
+        }
         executeQuery("UPDATE channels SET status = 'inactive', is_default = 0 WHERE id = ? AND company_id = ?", [$channel['id'], $companyId]);
         auditLog('delete', 'channel', (int) $channel['id'], 'Canal desativado: ' . $channel['name']);
         sendJson(['ok' => true]);
@@ -263,6 +267,24 @@ function handleChannels(string $method, array $input): never
         $result = providerSendText($channel, $to, 'Mensagem de teste do Ocular CRM ✅');
         executeQuery('UPDATE channels SET status = ?, last_error = ? WHERE id = ?', [$result['ok'] ? 'active' : 'error', mb_substr((string) $result['error'], 0, 500), $channel['id']]);
         sendJson($result + ['wa_link' => $channel['type'] === 'whatsapp_manual' ? whatsappLink($to, 'Mensagem de teste do Ocular CRM') : null]);
+    }
+    if ($method === 'POST' && in_array($input['action'] ?? '', ['connect', 'state', 'logout'], true)) {
+        $channel = requireCompanyRecord('channels', requireRouteId(), $companyId, 'Canal');
+        if ($channel['type'] !== 'whatsapp_evolution') {
+            sendError('A conexão por QR Code é exclusiva dos canais Evolution API.');
+        }
+        if ($input['action'] === 'connect') {
+            $pairing = onlyDigits((string) ($input['pairing_number'] ?? ''));
+            $result = evolutionConnect($channel, $pairing !== '' ? normalizePhone($pairing, (string) companySetting('default_ddd', '')) : '');
+            auditLog('connect', 'channel', (int) $channel['id'], 'Conexão do WhatsApp solicitada: ' . $channel['name']);
+        } elseif ($input['action'] === 'logout') {
+            $result = evolutionLogout($channel);
+            auditLog('disconnect', 'channel', (int) $channel['id'], 'WhatsApp desconectado: ' . $channel['name']);
+        } else {
+            $result = evolutionRefreshState($channel) + ['ok' => true];
+        }
+        $fresh = publicChannel(fetchOne('SELECT * FROM channels WHERE id = ?', [$channel['id']]));
+        sendJson($result + ['channel' => $fresh]);
     }
     $type = enumValue($input, 'type', array_keys(CHANNEL_TYPES));
     $incoming = is_array($input['config'] ?? null) ? $input['config'] : [];
@@ -277,12 +299,26 @@ function handleChannels(string $method, array $input): never
         // Campos secretos mascarados ("••••1234") mantêm o valor salvo.
         $config[$field] = str_starts_with($value, '••••') ? ($previousConfig[$field] ?? '') : $value;
     }
+    if ($type === 'whatsapp_evolution') {
+        // Integrado: o Ocular cria e gerencia a instância no servidor Evolution do sistema.
+        $config['managed'] = !empty($incoming['managed']) ? '1' : '';
+        if ($config['managed'] && !evolutionServerConfigured()) {
+            sendError('O WhatsApp integrado não está ativo nesta instalação. Configure EVOLUTION_URL e EVOLUTION_API_KEY ou informe um servidor próprio.');
+        }
+        if (!$config['managed'] && ($config['base_url'] === '' || $config['api_key'] === '' || $config['instance'] === '')) {
+            sendError('Para usar um servidor Evolution próprio, informe a URL, a API Key e o nome da instância.');
+        }
+        if ($config['managed']) {
+            $config['instance'] = $previousConfig['instance'] ?? '';
+        }
+    }
     $values = [
         'type' => $type,
         'name' => requiredText($input, 'name', 120, 'nome'),
         'config' => jsonColumn($config),
-        'status' => 'active',
+        'status' => $existing && $existing['status'] === 'error' ? 'error' : 'active',
         'is_default' => booleanValue($input, 'is_default'),
+        'daily_limit' => max(0, min(1000, (int) ($input['daily_limit'] ?? 0))),
     ];
     $channelId = inTransaction(static function () use ($existing, $companyId, $values): int {
         if ($values['is_default']) {

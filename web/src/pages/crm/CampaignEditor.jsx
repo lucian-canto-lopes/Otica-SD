@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Users } from 'lucide-react';
+import { ArrowLeft, Save, ShieldCheck, Users } from 'lucide-react';
 import { api } from '../../lib/api.js';
 import { invalidate, useApi, useDebounce } from '../../lib/hooks.js';
 import { number, phone, today } from '../../lib/format.js';
 import { CAMPAIGN_MODES, TEMPLATE_VARIABLES } from '../../lib/constants.js';
-import { Button, Card, Field, Input, Loading, PageHeader, Select, Tabs, useToast } from '../../components/ui.jsx';
+import { Button, Card, Checkbox, Field, Input, Loading, PageHeader, Select, Tabs, useToast } from '../../components/ui.jsx';
 import AudienceFilters, { cleanFilters } from './AudienceFilters.jsx';
 
 // Sugestões de mensagem e público para cada tipo de campanha.
@@ -37,8 +37,15 @@ const BLANK = {
   send_window_start: '08:00',
   send_window_end: '20:00',
   per_minute: 10,
+  min_interval_seconds: 45,
+  max_interval_seconds: 120,
+  batch_size: 20,
+  batch_pause_minutes: 15,
+  opt_out_footer: true,
   skip_recent_days: 0,
 };
+
+const UNOFFICIAL_TYPES = ['whatsapp_evolution', 'whatsapp_zapi'];
 
 export default function CampaignEditor() {
   const { id } = useParams();
@@ -83,6 +90,11 @@ export default function CampaignEditor() {
       send_window_start: (c.send_window_start || '08:00').slice(0, 5),
       send_window_end: (c.send_window_end || '20:00').slice(0, 5),
       per_minute: c.per_minute,
+      min_interval_seconds: c.min_interval_seconds ?? BLANK.min_interval_seconds,
+      max_interval_seconds: c.max_interval_seconds ?? BLANK.max_interval_seconds,
+      batch_size: c.batch_size ?? BLANK.batch_size,
+      batch_pause_minutes: c.batch_pause_minutes ?? BLANK.batch_pause_minutes,
+      opt_out_footer: c.opt_out_footer === undefined ? true : Boolean(Number(c.opt_out_footer)),
       skip_recent_days: c.skip_recent_days,
     });
     setSource(c.saved_report_id ? 'report' : 'filters');
@@ -157,6 +169,10 @@ export default function CampaignEditor() {
   const types = meta.data?.types || {};
   const channelList = (channels.data?.channels || []).filter((c) => c.status !== 'inactive');
   const selectedChannel = channelList.find((c) => String(c.id) === String(form.channel_id)) || channelList.find((c) => Number(c.is_default));
+  const safeSending = UNOFFICIAL_TYPES.includes(selectedChannel?.type);
+  const safety = selectedChannel?.safety;
+  // Estimativa de dias para concluir: o limite diário do número é o gargalo.
+  const estimatedDays = safeSending && preview?.total && safety?.daily_limit ? Math.ceil(preview.total / safety.daily_limit) : 0;
 
   return (
     <>
@@ -233,12 +249,54 @@ export default function CampaignEditor() {
               </Field>
               <Field label="Enviar entre" className="c2"><Input type="time" value={form.send_window_start} onChange={(e) => set('send_window_start', e.target.value)} /></Field>
               <Field label="e" className="c2"><Input type="time" value={form.send_window_end} onChange={(e) => set('send_window_end', e.target.value)} /></Field>
-              <Field label="Mensagens por minuto" className="c2"><Input type="number" min="1" max="60" value={form.per_minute} onChange={(e) => set('per_minute', e.target.value)} /></Field>
+              {!safeSending && (
+                <Field label="Mensagens por minuto" className="c2"><Input type="number" min="1" max="60" value={form.per_minute} onChange={(e) => set('per_minute', e.target.value)} /></Field>
+              )}
               <Field label="Pular quem recebeu campanha nos últimos (dias)" className="c4">
                 <Input type="number" min="0" value={form.skip_recent_days} onChange={(e) => set('skip_recent_days', e.target.value)} />
               </Field>
+              <div className="c12">
+                <Checkbox label='Incluir no fim da mensagem: "Para não receber mais mensagens, responda SAIR."' checked={form.opt_out_footer} onChange={(e) => set('opt_out_footer', e.target.checked)} />
+              </div>
             </div>
           </Card>
+
+          {safeSending && (
+            <Card title={<h3 className="row"><ShieldCheck size={17} /> Proteção do número</h3>}>
+              <div className="stack">
+                <p className="muted" style={{ margin: 0 }}>
+                  Este canal usa o WhatsApp por QR Code, que a Meta pode bloquear quando identifica disparo em massa. O envio sai uma mensagem por vez, com intervalos
+                  aleatórios, pausas entre lotes e o limite diário do número. Números sem WhatsApp são pulados e quem responder SAIR sai de todas as campanhas.
+                </p>
+                <div className="form-grid">
+                  <Field label="Intervalo entre mensagens (segundos)" className="c6" hint="Sorteado entre o mínimo e o máximo. Mínimo permitido: 30 s.">
+                    <div className="row">
+                      <Input type="number" min="30" max="900" value={form.min_interval_seconds} onChange={(e) => set('min_interval_seconds', e.target.value)} aria-label="Mínimo" />
+                      <span className="subtle">a</span>
+                      <Input type="number" min="30" max="1800" value={form.max_interval_seconds} onChange={(e) => set('max_interval_seconds', e.target.value)} aria-label="Máximo" />
+                    </div>
+                  </Field>
+                  <Field label="Pausa a cada" className="c3" hint="mensagens (5 a 50)">
+                    <Input type="number" min="5" max="50" value={form.batch_size} onChange={(e) => set('batch_size', e.target.value)} />
+                  </Field>
+                  <Field label="Duração da pausa" className="c3" hint="minutos (mín. 5)">
+                    <Input type="number" min="5" max="180" value={form.batch_pause_minutes} onChange={(e) => set('batch_pause_minutes', e.target.value)} />
+                  </Field>
+                </div>
+                {safety?.daily_limit ? (
+                  <span className="subtle">
+                    Limite deste número hoje: <strong>{safety.daily_limit}</strong> mensagens automáticas ({safety.sent_today} já usadas).
+                    {estimatedDays > 1 && <> Com {number(preview.total)} destinatários, a campanha leva cerca de <strong>{estimatedDays} dias</strong> para terminar.</>}
+                  </span>
+                ) : null}
+                {payload.audience.require_consent === false && (
+                  <p className="error-text" style={{ margin: 0 }}>
+                    O público inclui clientes sem aceite de mensagens. Mensagens para quem não pediu são a principal causa de denúncias e bloqueio do número.
+                  </p>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
 
         <div className="stack lg" style={{ position: 'sticky', top: 76 }}>
@@ -266,7 +324,10 @@ export default function CampaignEditor() {
           </Card>
           {preview?.example && (
             <Card title="Exemplo de mensagem">
-              <div className="bubble out" style={{ maxWidth: '100%' }}>{preview.example}</div>
+              <div className="bubble out" style={{ maxWidth: '100%', whiteSpace: 'pre-wrap' }}>
+                {preview.example}
+                {form.opt_out_footer && !/responda sair/i.test(preview.example) ? '\n\nPara não receber mais mensagens, responda SAIR.' : ''}
+              </div>
             </Card>
           )}
         </div>

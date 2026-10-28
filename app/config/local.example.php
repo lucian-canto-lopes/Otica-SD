@@ -11,4 +11,9 @@ return [
     'PUBLIC_URL' => '',
     'MAX_UPLOAD_MB' => '15',
     'APP_DEBUG' => '0',
+    // WhatsApp integrado (Evolution API). Com o Docker Desktop: docker compose up -d evolution
+    'EVOLUTION_URL' => 'http://127.0.0.1:8081',
+    'EVOLUTION_API_KEY' => '', // o mesmo valor de EVOLUTION_API_KEY usado no compose
+    // Como o servidor Evolution (dentro do Docker) enxerga esta instalação do XAMPP.
+    'EVOLUTION_WEBHOOK_BASE' => 'http://host.docker.internal/Otica-SD/app/public/api',
 ];

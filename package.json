@@ -1,6 +1,6 @@
 {
   "name": "ocular",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "description": "Ocular — CRM e gestão para óticas. A interface fica em web/ e a API em app/.",
   "scripts": {

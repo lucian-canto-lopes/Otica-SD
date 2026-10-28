@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Edit, MessageCircle, Pause, Play, RefreshCw, Send, SkipForward, Square, Trash2, Users, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Edit, MessageCircle, Pause, Play, RefreshCw, Send, ShieldCheck, SkipForward, Square, Trash2, Users, XCircle } from 'lucide-react';
 import { api } from '../../lib/api.js';
 import { invalidate, useApi } from '../../lib/hooks.js';
 import { dateTime, number, phone } from '../../lib/format.js';
@@ -37,7 +37,8 @@ export default function CampaignDetail() {
     setBusy(action);
     try {
       const result = await api.patch('campaigns', { action, ...body }, { id });
-      toast.success(result.added !== undefined ? `${result.added} novo(s) destinatário(s) adicionado(s)` : message);
+      if (result.ok === false && !result.skipped) toast.error(result.error || 'Falha no envio');
+      else toast.success(result.skipped ? `${result.error} Pulado.` : result.added !== undefined ? `${result.added} novo(s) destinatário(s) adicionado(s)` : message);
       refresh();
     } catch (error) {
       toast.error(error);
@@ -112,8 +113,21 @@ export default function CampaignDetail() {
           <span className="subtle">{pct}% concluído</span>
         </div>
         <div className="progress"><div style={{ width: `${pct}%` }} /></div>
-        {c.mode === 'auto' && apiChannel && c.status === 'running' && (
+        {c.pause_reason && (
+          <p className={c.status === 'paused' ? 'error-text' : 'subtle'} style={{ marginTop: 8 }}>
+            <ShieldCheck size={14} /> {c.status === 'paused' ? 'Pausada automaticamente: ' : ''}{c.pause_reason}
+          </p>
+        )}
+        {c.mode === 'auto' && apiChannel && c.status === 'running' && !c.safe_sending && (
           <p className="subtle" style={{ marginTop: 8 }}>Envio automático em segundo plano: até {c.per_minute} mensagens por minuto, entre {c.send_window_start?.slice(0, 5)} e {c.send_window_end?.slice(0, 5)}.</p>
+        )}
+        {c.mode === 'auto' && c.safe_sending && c.status === 'running' && (
+          <p className="subtle" style={{ marginTop: 8 }}>
+            <ShieldCheck size={14} /> Envio seguro: uma mensagem a cada {c.min_interval_seconds}–{c.max_interval_seconds} s, pausa de {c.batch_pause_minutes} min a cada {c.batch_size}, entre{' '}
+            {c.send_window_start?.slice(0, 5)} e {c.send_window_end?.slice(0, 5)}.
+            {c.next_send_at && !c.pause_reason && <> Próximo envio: {dateTime(c.next_send_at)}.</>}
+            {c.channel_safety?.daily_limit ? <> Hoje o número enviou {c.channel_safety.sent_today} de {c.channel_safety.daily_limit} mensagens automáticas.</> : null}
+          </p>
         )}
         {c.mode === 'auto' && !apiChannel && (
           <p className="error-text" style={{ marginTop: 8 }}>O envio automático exige um canal com API. Com o canal manual, use o envio um a um abaixo.</p>
@@ -177,7 +191,8 @@ function NextContact({ campaignId, apiChannel, onChanged }) {
     setBusy(true);
     try {
       const result = await api.patch('campaigns', { action: 'send_one', recipient_id: recipient.id }, { id: campaignId });
-      if (!result.ok) toast.error(result.error || 'Falha no envio');
+      if (result.skipped) toast.success(`${recipient.name}: ${result.error} Pulado.`);
+      else if (!result.ok) toast.error(result.error || 'Falha no envio');
       next.reload();
       onChanged();
     } catch (error) {

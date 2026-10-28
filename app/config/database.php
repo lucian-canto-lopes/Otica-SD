@@ -16,6 +16,11 @@ function appConfig(string $key): string
             'STORAGE_PATH' => dirname(__DIR__) . '/storage',
             'MAX_UPLOAD_MB' => '15',
             'APP_DEBUG' => '0',
+            // WhatsApp integrado: servidor Evolution API que acompanha o sistema.
+            'EVOLUTION_URL' => '',
+            'EVOLUTION_API_KEY' => '',
+            // Endereço da API do Ocular visto pelo servidor Evolution (para os webhooks); vazio = PUBLIC_URL.
+            'EVOLUTION_WEBHOOK_BASE' => '',
         ];
         $localFile = __DIR__ . '/local.php';
         if (is_file($localFile)) {

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 
 date_default_timezone_set(getenv('TZ') ?: 'America/Sao_Paulo');
 mb_internal_encoding('UTF-8');

@@ -13,7 +13,7 @@ declare(strict_types=1);
 const CHANNEL_TYPES = [
     'whatsapp_manual' => ['label' => 'WhatsApp manual (link wa.me)', 'fields' => []],
     'whatsapp_cloud' => ['label' => 'WhatsApp API oficial (Meta Cloud)', 'fields' => ['phone_number_id', 'waba_id', 'access_token', 'app_secret', 'verify_token', 'graph_version']],
-    'whatsapp_evolution' => ['label' => 'WhatsApp não oficial (Evolution API)', 'fields' => ['base_url', 'api_key', 'instance']],
+    'whatsapp_evolution' => ['label' => 'WhatsApp por QR Code (Evolution API)', 'fields' => ['base_url', 'api_key', 'instance']],
     'whatsapp_zapi' => ['label' => 'WhatsApp não oficial (Z-API)', 'fields' => ['instance_id', 'token', 'client_token']],
     'instagram' => ['label' => 'Instagram Direct (Meta)', 'fields' => ['page_id', 'access_token', 'app_secret', 'verify_token', 'graph_version']],
     'facebook' => ['label' => 'Facebook Messenger (Meta)', 'fields' => ['page_id', 'access_token', 'app_secret', 'verify_token', 'graph_version']],
@@ -94,15 +94,12 @@ function providerSendText(array $channel, string $to, string $text, array $optio
         ];
     }
     if ($type === 'whatsapp_evolution') {
-        $base = rtrim((string) ($config['base_url'] ?? ''), '/');
-        $result = httpJson('POST', "{$base}/message/sendText/" . rawurlencode((string) ($config['instance'] ?? '')), [
-            'apikey' => $config['api_key'] ?? '',
-        ], ['number' => $to, 'text' => $text]);
+        $result = evolutionRequest($channel, 'POST', '/message/sendText/{instance}', ['number' => $to, 'text' => $text]);
         $ok = $result['status'] >= 200 && $result['status'] < 300;
         return [
             'ok' => $ok,
             'external_id' => $result['body']['key']['id'] ?? null,
-            'error' => $ok ? '' : (json_encode($result['body']['response'] ?? $result['body'], JSON_UNESCAPED_UNICODE) ?: $result['error']),
+            'error' => $ok ? '' : evolutionErrorText($result),
             'status' => $ok ? 'sent' : 'failed',
         ];
     }
@@ -305,6 +302,11 @@ function handleInboundWebhook(string $method): never
     $payload = json_decode($raw, true) ?: [];
     $companyId = (int) $channel['company_id'];
     foreach (parseInboundPayload($channel['type'], $payload) as $event) {
+        if ($event['kind'] === 'connection') {
+            applyChannelConnectionState($channel, $event['state']);
+            $channel = fetchOne('SELECT * FROM channels WHERE id = ?', [$channel['id']]);
+            continue;
+        }
         if ($event['kind'] === 'status') {
             executeQuery('UPDATE messages SET status = ? WHERE company_id = ? AND external_id = ?', [$event['status'], $companyId, $event['external_id']]);
             continue;
@@ -314,7 +316,7 @@ function handleInboundWebhook(string $method): never
         }
         storeInboundMessage($channel, $event);
     }
-    if ($channel['status'] === 'error') {
+    if ($channel['status'] === 'error' && ($channel['connection_state'] ?? '') !== 'close') {
         executeQuery("UPDATE channels SET status = 'active', last_error = '' WHERE id = ?", [$channel['id']]);
     }
     sendJson(['ok' => true]);
@@ -366,6 +368,17 @@ function parseInboundPayload(string $type, array $payload): array
                     'body' => $message['conversation'] ?? $message['extendedTextMessage']['text'] ?? $message['imageMessage']['caption'] ?? '[mídia]',
                 ];
             }
+        } elseif ($eventName === 'messages.update') {
+            $map = ['SERVER_ACK' => 'sent', 'DELIVERY_ACK' => 'delivered', 'READ' => 'read', 'PLAYED' => 'read', 'ERROR' => 'failed'];
+            foreach (isset($data['status']) ? [$data] : (array) $data as $update) {
+                $status = $map[strtoupper((string) ($update['status'] ?? ''))] ?? null;
+                $externalId = (string) ($update['keyId'] ?? $update['key']['id'] ?? '');
+                if ($status && $externalId !== '') {
+                    $events[] = ['kind' => 'status', 'external_id' => $externalId, 'status' => $status];
+                }
+            }
+        } elseif ($eventName === 'connection.update' && isset($data['state'])) {
+            $events[] = ['kind' => 'connection', 'state' => (string) $data['state']];
         }
     } elseif ($type === 'whatsapp_zapi') {
         if (($payload['type'] ?? '') === 'ReceivedCallback' && empty($payload['fromMe']) && empty($payload['isGroup'])) {
@@ -394,7 +407,7 @@ function parseInboundPayload(string $type, array $payload): array
             }
         }
     }
-    return array_values(array_filter($events, static fn($e) => $e['kind'] === 'status' || $e['from'] !== ''));
+    return array_values(array_filter($events, static fn($e) => $e['kind'] !== 'message' || $e['from'] !== ''));
 }
 
 function storeInboundMessage(array $channel, array $event): void
@@ -422,6 +435,9 @@ function storeInboundMessage(array $channel, array $event): void
              WHERE company_id = ? AND client_id = ? AND status = 'sent' AND sent_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
             [$companyId, $conversation['client_id']],
         );
+    }
+    if (isOptOutMessage((string) $event['body'])) {
+        registerOptOut($channel, $conversation);
     }
     emitEvent($companyId, 'message.received', [
         'conversation_id' => (int) $conversation['id'],

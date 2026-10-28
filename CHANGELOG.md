@@ -2,6 +2,14 @@
 
 O projeto segue [versionamento semântico](https://semver.org/lang/pt-BR/): MAIOR para mudanças incompatíveis, MENOR para novas funcionalidades e CORREÇÃO para ajustes.
 
+## 2.1.0 — 2026-10-28
+
+- **WhatsApp integrado:** a Evolution API passa a acompanhar o sistema (`compose.yaml`). A ótica conecta o número lendo o QR Code (ou por código de pareamento) em Configurações › Canais; o Ocular cria a instância, configura o webhook e acompanha a conexão.
+- **Envio seguro de campanhas** pelo WhatsApp por QR Code: aquecimento do número com limite diário, uma mensagem por vez com intervalos aleatórios, pausas entre lotes, verificação de números sem WhatsApp, prioridade para quem já conversou com a ótica e pausa automática em caso de desconexão ou falhas seguidas.
+- **Descadastro:** rodapé "responda SAIR" opcional; respostas SAIR/PARAR/STOP retiram o aceite, removem o cliente das campanhas pendentes e enviam uma confirmação.
+- Status de entrega e leitura das mensagens enviadas pela Evolution API.
+- O processador em segundo plano roda a cada 15 segundos.
+
 ## 2.0.0 — 2026-10-28
 
 Reescrita como plataforma multiótica.
