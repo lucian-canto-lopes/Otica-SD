@@ -165,13 +165,23 @@ function importDate(array $row, string $key): ?string
     return normalizeDate($value);
 }
 
+/** Planilhas do Excel guardam CPF como número e removem os zeros à esquerda. */
+function importCpf(string $value): string
+{
+    $digits = onlyDigits($value);
+    if (strlen($digits) >= 8 && strlen($digits) < 11) {
+        $digits = str_pad($digits, 11, '0', STR_PAD_LEFT);
+    }
+    return substr($digits, 0, 20);
+}
+
 function findImportedClient(int $companyId, array $row): ?int
 {
     $legacy = importValue($row, 'client_legacy_id');
     if ($legacy !== '' && ($id = fetchValue('SELECT id FROM clients WHERE company_id = ? AND legacy_id = ?', [$companyId, $legacy]))) {
         return (int) $id;
     }
-    $cpf = onlyDigits(importValue($row, 'client_cpf'));
+    $cpf = importCpf(importValue($row, 'client_cpf'));
     if (strlen($cpf) >= 11 && ($id = fetchValue('SELECT id FROM clients WHERE company_id = ? AND cpf = ? AND deleted_at IS NULL', [$companyId, $cpf]))) {
         return (int) $id;
     }
@@ -196,7 +206,7 @@ function importClient(int $companyId, array $row, bool $updateExisting, string $
     $values = [
         'name' => $name,
         'nickname' => mb_substr(importValue($row, 'nickname'), 0, 80),
-        'cpf' => substr(onlyDigits(importValue($row, 'cpf')), 0, 20),
+        'cpf' => importCpf(importValue($row, 'cpf')),
         'rg' => mb_substr(importValue($row, 'rg'), 0, 30),
         'birth_date' => importDate($row, 'birth_date'),
         'gender' => in_array($gender, ['F', 'M'], true) ? $gender : '',

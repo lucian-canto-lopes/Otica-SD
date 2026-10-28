@@ -459,6 +459,13 @@ function handleSavedReports(string $method, array $input): never
 function handleDashboard(string $method, array $input): never
 {
     $companyId = Context::companyId();
+    if (query('compact') === '1') {
+        // Contadores leves para os avisos do menu.
+        sendJson([
+            'tasks_today' => (int) fetchValue("SELECT COUNT(*) FROM tasks WHERE company_id = ? AND status = 'pending' AND due_date <= CURRENT_DATE", [$companyId]),
+            'unread_conversations' => (int) fetchValue('SELECT COUNT(*) FROM conversations WHERE company_id = ? AND unread > 0', [$companyId]),
+        ]);
+    }
     $from = normalizeDate(query('from', '')) ?? date('Y-m-01');
     $to = normalizeDate(query('to', '')) ?? date('Y-m-d');
     $days = max(1, (int) ((strtotime($to) - strtotime($from)) / 86400) + 1);

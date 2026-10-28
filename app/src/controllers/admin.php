@@ -113,6 +113,18 @@ function handleAdminCompanies(string $method, array $input): never
         sendJson(['ok' => true]);
     }
 
+    if ($method === 'PATCH' && ($input['only_status'] ?? false) === true) {
+        // Bloqueio/desbloqueio rápido: altera somente a situação e o motivo.
+        $companyId = requireRouteId();
+        $before = fetchOne('SELECT * FROM companies WHERE id = ?', [$companyId]) ?? sendError('Ótica não encontrada.', 404);
+        $status = enumValue($input, 'status', ['trial', 'active', 'blocked', 'cancelled']);
+        $reason = optionalText($input, 'blocked_reason', 255);
+        executeQuery('UPDATE companies SET status = ?, blocked_reason = ? WHERE id = ?', [$status, $reason, $companyId]);
+        $action = $status === 'blocked' ? 'block' : ($before['status'] === 'blocked' ? 'unblock' : 'update');
+        auditLog($action, 'company', $companyId, 'Ótica ' . $before['name'] . ': ' . $status . ($reason ? " ({$reason})" : ''), null, $companyId);
+        sendJson(['ok' => true]);
+    }
+
     $values = [
         'name' => requiredText($input, 'name', 150, 'razão social'),
         'trade_name' => optionalText($input, 'trade_name', 150),
@@ -133,9 +145,6 @@ function handleAdminCompanies(string $method, array $input): never
     if ($method === 'PATCH') {
         $companyId = requireRouteId();
         $before = fetchOne('SELECT * FROM companies WHERE id = ?', [$companyId]) ?? sendError('Ótica não encontrada.', 404);
-        if (($input['only_status'] ?? false) === true) {
-            $values = ['status' => $values['status'], 'blocked_reason' => $values['blocked_reason']];
-        }
         $assignments = implode(', ', array_map(static fn($c) => "{$c} = ?", array_keys($values)));
         executeQuery("UPDATE companies SET {$assignments} WHERE id = ?", [...array_values($values), $companyId]);
         $action = $before['status'] !== $values['status']
@@ -458,7 +467,8 @@ function auditQuery(?int $companyId, bool $includeCompany): array
         $where .= ' AND a.company_id = ?';
         $params[] = $companyId;
     }
-    foreach (['action' => 'a.action', 'entity' => 'a.entity'] as $key => $column) {
+    // "audit_action" porque "action" é o parâmetro de rota da API.
+    foreach (['audit_action' => 'a.action', 'entity' => 'a.entity'] as $key => $column) {
         if ($value = query($key)) {
             $where .= " AND {$column} = ?";
             $params[] = $value;
