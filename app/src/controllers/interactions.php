@@ -15,7 +15,9 @@ function handleInteractions(string $method, array $input, int $companyId): never
                   i.notes,
                   i.contact_date,
                   c.name AS client,
-                  c.phone
+                  c.phone,
+                  COALESCE(c.message_consent, 0) AS message_consent,
+                  c.message_consent_at
                 FROM interactions i
                 JOIN clients c
                   ON c.id = i.client_id

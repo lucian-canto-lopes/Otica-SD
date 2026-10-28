@@ -28,6 +28,8 @@ CREATE TABLE clients (
   birth_date DATE NULL,
   next_contact_date DATE NULL,
   notes TEXT,
+  message_consent TINYINT(1) NOT NULL DEFAULT 0,
+  message_consent_at DATETIME NULL,
   FOREIGN KEY (company_id) REFERENCES companies (id)
 );
 
@@ -60,13 +62,24 @@ CREATE TABLE sales (
   id INT AUTO_INCREMENT PRIMARY KEY,
   company_id INT NOT NULL,
   client_id INT NOT NULL,
-  product_id INT NOT NULL,
-  quantity INT NOT NULL,
   total DECIMAL(12, 2) NOT NULL,
   paid DECIMAL(12, 2) NOT NULL,
+  payment_date DATE NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (company_id) REFERENCES companies (id),
-  FOREIGN KEY (client_id) REFERENCES clients (id),
+  FOREIGN KEY (client_id) REFERENCES clients (id)
+);
+
+CREATE TABLE sale_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL,
+  sale_id INT NOT NULL,
+  product_id INT NOT NULL,
+  quantity INT NOT NULL,
+  unit_price DECIMAL(12, 2) NOT NULL,
+  subtotal DECIMAL(12, 2) NOT NULL,
+  FOREIGN KEY (company_id) REFERENCES companies (id),
+  FOREIGN KEY (sale_id) REFERENCES sales (id),
   FOREIGN KEY (product_id) REFERENCES products (id)
 );
 
@@ -150,7 +163,9 @@ INSERT INTO
     email,
     birth_date,
     next_contact_date,
-    notes
+    notes,
+    message_consent,
+    message_consent_at
   )
 VALUES
   (
@@ -160,7 +175,9 @@ VALUES
     'mariana@example.test',
     DATE_ADD(CURRENT_DATE, INTERVAL 20 DAY),
     DATE_ADD(CURRENT_DATE, INTERVAL 7 DAY),
-    'Prefere contato à tarde'
+    'Prefere contato à tarde',
+    1,
+    CURRENT_TIMESTAMP
   ),
   (
     1,
@@ -169,7 +186,9 @@ VALUES
     '',
     NULL,
     NULL,
-    ''
+    '',
+    0,
+    NULL
   ),
   (
     2,
@@ -178,7 +197,9 @@ VALUES
     '',
     NULL,
     NULL,
-    ''
+    '',
+    0,
+    NULL
   );
 
 INSERT INTO

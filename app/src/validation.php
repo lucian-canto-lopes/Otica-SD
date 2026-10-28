@@ -72,6 +72,18 @@ function optionalEmail(array $input, string $key = 'email'): string
     return $email;
 }
 
+function booleanValue(array $input, string $key): int
+{
+    $value = $input[$key] ?? false;
+    if (in_array($value, [true, 1, '1', 'true', 'on'], true)) {
+        return 1;
+    }
+    if (in_array($value, [false, 0, '0', 'false', 'off', '', null], true)) {
+        return 0;
+    }
+    sendError('Valor inválido: ' . $key);
+}
+
 // Resolve o cliente dentro da empresa da sessão, nunca apenas pelo ID informado.
 function requireCompanyClient(array $input, int $companyId): int
 {

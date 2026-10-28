@@ -17,7 +17,9 @@ function handleReminders(string $method, array $input, int $companyId): never
                   r.completed_at,
                   r.created_at,
                   c.name AS client,
-                  c.phone
+                  c.phone,
+                  COALESCE(c.message_consent, 0) AS message_consent,
+                  c.message_consent_at
                 FROM reminders r
                 LEFT JOIN clients c
                   ON c.id = r.client_id
@@ -72,6 +74,23 @@ function handleReminders(string $method, array $input, int $companyId): never
     $clientId = null;
     if (($input['client_id'] ?? '') !== '') {
         $clientId = requireCompanyClient($input, $companyId);
+        $authorizedClient = executeQuery(
+            <<<'SQL'
+            SELECT id
+            FROM clients
+            WHERE id = ?
+              AND company_id = ?
+              AND message_consent = 1
+              AND TRIM(phone) <> ''
+            SQL
+            ,
+            [$clientId, $companyId],
+        )->fetch();
+        if (!$authorizedClient) {
+            sendError(
+                'O cliente precisa autorizar mensagens e possuir telefone para entrar na central.',
+            );
+        }
     }
     executeQuery(
         <<<'SQL'

@@ -119,6 +119,7 @@ def main():
         birth_date=birth_date_for(today + timedelta(days=7)),
         next_contact_date=(today + timedelta(days=5)).isoformat(),
         notes='Prefere contato por WhatsApp.',
+        message_consent=1,
     )
 
     # Toda mutação passa pelo mesmo bloqueio CSRF e não deixa efeito colateral.
@@ -129,6 +130,25 @@ def main():
     assert client_a['email'] == client_a_payload['email']
     assert client_a['birth_date'] == client_a_payload['birth_date']
     assert client_a['next_contact_date'] == client_a_payload['next_contact_date']
+    assert int(client_a['message_consent']) == 1
+    assert client_a['message_consent_at'] is not None
+    automatic_reminders = company_a_client.call('reminders')
+    automatic_types = {
+        reminder['type']
+        for reminder in automatic_reminders
+        if int(reminder['client_id']) == int(client_a['id'])
+    }
+    assert {'birthday', 'follow_up'} <= automatic_types
+    company_a_client.call(
+        'clients', dict(client_a_payload, id=client_a['id']), method='PATCH'
+    )
+    repeated_automatic_reminders = [
+        reminder
+        for reminder in company_a_client.call('reminders')
+        if int(reminder['client_id']) == int(client_a['id'])
+        and reminder['type'] in ('birthday', 'follow_up')
+    ]
+    assert len(repeated_automatic_reminders) == 2
 
     client_b_name = f'Cliente B {marker}'
     company_b_client.call(
@@ -138,12 +158,14 @@ def main():
             phone='(93) 99999-2222',
             email=f'cliente-b-{marker}@example.test',
             birth_date='',
-            next_contact_date='',
+            next_contact_date=(today + timedelta(days=6)).isoformat(),
             notes='',
         ),
         expected=201,
     )
     client_b = find_record(company_b_client.call('clients'), name=client_b_name)
+    assert int(client_b['message_consent']) == 0
+    assert client_b['message_consent_at'] is None
     assert int(client_a['id']) not in {
         int(record['id']) for record in company_b_client.call('clients')
     }
@@ -274,6 +296,17 @@ def main():
     company_a_client.call('reminders', reminder_payload, expected=201)
     reminder = find_record(company_a_client.call('reminders'), message=reminder_message)
     assert reminder['status'] == 'pending'
+    assert int(reminder['message_consent']) == 1
+    company_b_client.call(
+        'reminders',
+        dict(
+            client_id=client_b['id'],
+            type='follow_up',
+            due_date=(today + timedelta(days=3)).isoformat(),
+            message=f'Lembrete sem autorização {marker}',
+        ),
+        expected=422,
+    )
     company_b_client.call(
         'reminders',
         dict(reminder_payload, message=f'Lembrete invasor {marker}'),
@@ -376,7 +409,7 @@ def main():
 
     dashboard = company_a_client.call('dashboard')
     assert int(dashboard['upcoming_birthdays']) == 1
-    assert int(dashboard['pending_reminders']) == 1
+    assert int(dashboard['pending_reminders']) == 3
     assert int(dashboard['overdue_orders']) == 1
     assert int(dashboard['low_stock']) == 1
 
@@ -409,7 +442,24 @@ def main():
     )
     assert completed_reminder['status'] == 'completed'
     assert completed_reminder['completed_at'] is not None
-    assert int(company_a_client.call('dashboard')['pending_reminders']) == 0
+    assert int(company_a_client.call('dashboard')['pending_reminders']) == 2
+
+    # A revogação limpa a data do aceite e bloqueia novos lembretes para contato.
+    company_a_client.call(
+        'clients',
+        dict(client_a_payload, id=client_a['id'], message_consent=0),
+        method='PATCH',
+    )
+    client_after_revocation = find_record(
+        company_a_client.call('clients'), name=client_a_name
+    )
+    assert int(client_after_revocation['message_consent']) == 0
+    assert client_after_revocation['message_consent_at'] is None
+    company_a_client.call(
+        'reminders',
+        dict(reminder_payload, message=f'Lembrete após revogação {marker}'),
+        expected=422,
+    )
 
     # Entregar a ordem retira a pendência vencida e acrescenta o evento final.
     company_a_client.call(

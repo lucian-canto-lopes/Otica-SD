@@ -5,6 +5,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/http.php';
 require_once __DIR__ . '/validation.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/services/automatic_reminders.php';
 
 foreach (
     [

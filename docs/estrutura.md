@@ -61,10 +61,10 @@ O worker é independente das requisições da interface. Assim, a preparação d
 ## Dados e relacionamentos
 
 - `companies` e `users` representam as óticas, o administrador geral e os responsáveis.
-- `clients` guarda telefone, e-mail, data de nascimento, próximo contato e observações. A última compra é calculada ao consultar os clientes.
+- `clients` guarda telefone, e-mail, data de nascimento, próximo contato, observações, aceite para mensagens e a data desse aceite. A última compra é calculada ao consultar os clientes.
 - `partners` reúne fornecedores e laboratórios da ótica.
 - `products` pode apontar para um parceiro do tipo fornecedor.
-- `sales` liga cliente e produto e registra quantidade, total e valor pago.
+- `sales` registra o cliente, o total, o valor e a data do pagamento; `sale_items` guarda cada produto, quantidade, preço unitário e subtotal da venda.
 - `orders` liga cliente e, opcionalmente, laboratório. `order_events` preserva cada mudança de etapa com data e observação.
 - `interactions` registra o canal, o assunto, as observações e a data de cada contato com o cliente.
 - `reminders` registra tarefas de aniversário, renovação, retirada, acompanhamento ou outro tipo, com vencimento e situação. `source_key` identifica a origem dos registros automáticos e evita duplicações dentro da mesma empresa.
@@ -75,19 +75,20 @@ As tabelas operacionais possuem `company_id`. Além de filtrar as listagens, a A
 
 ### Relacionamento com o cliente
 
-O formulário de cliente em `forms.js` coleta os dados de contato e acompanhamento. `app.js` envia o registro por `requestApi()`; `index.php` autentica a sessão e chama `handleClients()`. Depois, a ótica pode registrar contatos em `interactions` e tarefas em `reminders`. O worker também pode preparar lembretes a partir das datas e ordens cadastradas.
+O formulário de cliente em `forms.js` coleta os dados de contato, acompanhamento e o aceite explícito para mensagens. `app.js` envia o registro por `requestApi()`; `index.php` autentica a sessão e chama `handleClients()`. A API registra a data do primeiro aceite, limpa essa data se a autorização for retirada e cria imediatamente os lembretes de acompanhamento e aniversário elegíveis. Depois, a ótica pode registrar contatos em `interactions` e tarefas em `reminders`.
 
-Os atalhos de WhatsApp montam um link a partir do telefone do cliente e abrem a conversa. O operador realiza o contato manualmente. Não existe envio automático nem integração com a API oficial do WhatsApp.
+Os atalhos de WhatsApp montam um link a partir do telefone do cliente e abrem a conversa. Para clientes sem aceite, o sistema oculta o atalho e mostra **Sem autorização**. O operador realiza o contato manualmente. Não existe envio automático nem integração com a API oficial do WhatsApp.
 
 ### Processamento de lembretes
 
-`app/worker.php` executa uma verificação assim que o contêiner inicia e repete o processamento a cada cinco minutos. Para empresas em avaliação ou ativas, ele prepara lembretes pendentes para:
+O serviço compartilhado `automatic_reminders.php` é chamado logo após salvar um cliente, ao registrar uma venda e quando uma ordem chega à etapa **Pronta**, fazendo o resultado aparecer imediatamente na central. `app/worker.php` usa o mesmo serviço ao iniciar e a cada cinco minutos como mecanismo de recuperação. Para empresas em avaliação ou ativas, ele considera somente clientes com telefone e aceite vigente e prepara lembretes pendentes para:
 
 - clientes cuja data de próximo contato está entre hoje e os próximos 30 dias;
 - clientes que fazem aniversário entre hoje e os próximos 30 dias;
+- vendas, com renovação dos óculos agendada para um ano após a data do pagamento;
 - ordens que chegaram à etapa **Pronta**, indicando a retirada pelo cliente.
 
-Cada tarefa automática recebe uma `source_key`. A restrição única por empresa permite repetir a consulta com segurança sem inserir o mesmo lembrete novamente. O worker grava tarefas na tabela `reminders`; ele não envia mensagens pelo WhatsApp, e-mail ou outro canal.
+Cada tarefa automática recebe uma `source_key`. A restrição única por empresa permite repetir a consulta com segurança sem inserir o mesmo lembrete novamente. O worker grava tarefas na tabela `reminders`; ele não envia mensagens pelo WhatsApp, e-mail ou outro canal. Uma futura integração de envio deverá conferir novamente o aceite imediatamente antes de enviar, pois o cliente pode revogá-lo depois da criação do lembrete.
 
 ### Produtos e fornecedores
 
@@ -134,7 +135,7 @@ Os recursos anteriores permanecem disponíveis. `clients` agora também aceita `
 - PHP e Python usam quatro espaços; JavaScript, HTML e CSS usam dois.
 - Funções com prefixo `handle` tratam um recurso da API e encerram a resposta com `sendJson` ou `sendError`.
 - O ID da empresa vem da sessão autenticada. Preserve esse filtro nas consultas e valide referências a outros registros.
-- Valores de venda são calculados em centavos na API; o banco armazena `DECIMAL`.
+- Valores de venda são calculados em centavos na API; o banco armazena `DECIMAL`. Todos os itens e baixas de estoque são confirmados juntos ou revertidos em caso de falha.
 - A interface usa módulos JavaScript nativos, sem etapa de compilação. Os dados inseridos em templates HTML passam por `escapeHtml`.
 - Os controladores mantêm as consultas próximas às regras nesta fase do protótipo; não há framework nem camadas adicionais obrigatórias.
 - Os dados de `db/init.sql` são importados somente ao criar o volume. `app/seed.php` aplica as estruturas adicionais ao iniciar a API com um banco já existente.

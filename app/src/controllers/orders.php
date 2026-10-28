@@ -87,6 +87,9 @@ function handleOrders(string $method, array $input, int $companyId): never
             [$companyId, $orderId, $status, substr(trim((string) ($input['notes'] ?? '')), 0, 500)],
         );
         database()->commit();
+        if ($status === 'ready') {
+            prepareAutomaticReminders($companyId, null, $orderId);
+        }
         sendJson(['ok' => true]);
     }
     if ($method !== 'POST') {

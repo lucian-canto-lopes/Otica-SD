@@ -78,11 +78,42 @@ function safeWhatsAppUrl(record) {
 
 function contactCell(record) {
   const phone = record.phone || record.client_phone || '';
+  const consentIsKnown = Object.prototype.hasOwnProperty.call(record, 'message_consent');
+  const hasConsent = !consentIsKnown || Number(record.message_consent) === 1;
+  if (!hasConsent) {
+    return `<div class="contact-cell">${phone ? `<span>${escapeHtml(phone)}</span>` : ''}<span class="badge denied">Sem autorização</span></div>`;
+  }
   const whatsappUrl = safeWhatsAppUrl(record);
   const link = whatsappUrl
     ? `<a class="whatsapp-link" href="${escapeHtml(whatsappUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Conversar com ${escapeHtml(record.client || record.name || 'o contato')} pelo WhatsApp">WhatsApp ↗</a>`
     : '';
   return `<div class="contact-cell">${phone ? `<span>${escapeHtml(phone)}</span>` : ''}${link || '<span class="muted">—</span>'}</div>`;
+}
+
+function consentCell(record) {
+  if (Number(record.message_consent) !== 1) {
+    return '<span class="badge denied">Não autorizado</span>';
+  }
+  const date = record.message_consent_at
+    ? `<small>Desde ${formatDateTime(record.message_consent_at)}</small>`
+    : '';
+  return `<div class="consent-status"><span class="badge">Autorizado</span>${date}</div>`;
+}
+
+function saleItemsCell(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return '<span class="muted">—</span>';
+  }
+  return `<ul class="sale-items-summary">${items
+    .map(
+      (item) => `
+        <li>
+          <span>${escapeHtml(item.product)}</span>
+          <small>${escapeHtml(item.quantity)} × ${formatMoney(item.unit_price)}</small>
+        </li>
+      `,
+    )
+    .join('')}</ul>`;
 }
 
 function orderHistoryCell(history) {
@@ -130,6 +161,7 @@ export function renderRecordsTable(view, records) {
           'Aniversário',
           'Última compra',
           'Próximo contato',
+          'Mensagens',
           'Observações',
           'Ações',
         ],
@@ -140,6 +172,7 @@ export function renderRecordsTable(view, records) {
           formatDate(record.birth_date),
           formatDate(record.last_purchase),
           formatDate(record.next_contact_date),
+          consentCell(record),
           displayText(record.notes),
           `<button class="table-action" type="button" data-edit="${escapeHtml(record.id)}" data-edit-phone="${escapeHtml(record.phone || record.client_phone || '')}">Editar</button>`,
         ]),
@@ -193,11 +226,12 @@ export function renderRecordsTable(view, records) {
       );
     case 'sales':
       return renderTable(
-        ['Venda', 'Cliente', 'Produto', 'Quantidade', 'Total', 'Pago', 'A receber'],
+        ['Venda', 'Cliente', 'Pagamento', 'Itens', 'Unidades', 'Total', 'Pago', 'A receber'],
         records.map((record) => [
           '#' + escapeHtml(record.id),
           displayText(record.client),
-          displayText(record.product),
+          formatDate(record.payment_date),
+          saleItemsCell(record.items),
           escapeHtml(record.quantity),
           formatMoney(record.total),
           formatMoney(record.paid),

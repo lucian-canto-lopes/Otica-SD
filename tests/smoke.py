@@ -5,6 +5,7 @@ import json
 import urllib.error
 import urllib.request
 import uuid
+from datetime import date
 
 
 BASE_URL = 'http://localhost:8080/api/index.php'
@@ -74,28 +75,79 @@ def main():
     assert branding['name'] == 'Ótica personalizada'
     assert branding['logo_data'] == demo_logo
 
-    optical_client.call('clients', dict(name='Cliente teste', phone='123'), expected=201)
-    client_id = optical_client.call('clients')[0]['id']
     optical_client.call(
-        'products',
-        dict(name='Produto teste', category='Armação', price='10.50', stock=3),
+        'clients',
+        dict(name='Cliente teste', phone='123', message_consent=1),
         expected=201,
     )
-    product_id = optical_client.call('products')[0]['id']
-    sale = dict(client_id=client_id, product_id=product_id, quantity=2, paid='5.00')
+    client_id = optical_client.call('clients')[0]['id']
+    assert int(optical_client.call('clients')[0]['message_consent']) == 1
+    optical_client.call(
+        'products',
+        dict(name='Produto teste A', category='Armação', price='10.50', stock=3),
+        expected=201,
+    )
+    optical_client.call(
+        'products',
+        dict(name='Produto teste B', category='Lente', price='20.00', stock=5),
+        expected=201,
+    )
+    products = optical_client.call('products')
+    product_a = next(product for product in products if product['name'] == 'Produto teste A')
+    product_b = next(product for product in products if product['name'] == 'Produto teste B')
+    sale = dict(
+        client_id=client_id,
+        items=[
+            dict(product_id=product_a['id'], quantity=2),
+            dict(product_id=product_b['id'], quantity=3),
+        ],
+        paid='5.00',
+        payment_date=date.today().isoformat(),
+    )
 
-    # A venda exige CSRF e baixa o estoque junto com a gravação do total.
+    # A venda exige CSRF e baixa todos os itens junto com a gravação do total.
     optical_client.call('sales', sale, csrf=False, expected=403)
     optical_client.call('sales', sale, expected=201)
-    assert optical_client.call('products')[0]['stock'] == 1
-    assert float(optical_client.call('sales')[0]['total']) == 21
+    stocks = {int(product['id']): int(product['stock']) for product in optical_client.call('products')}
+    assert stocks[int(product_a['id'])] == 1
+    assert stocks[int(product_b['id'])] == 2
+    recorded_sale = optical_client.call('sales')[0]
+    assert float(recorded_sale['total']) == 81
+    assert int(recorded_sale['quantity']) == 5
+    assert {item['product'] for item in recorded_sale['items']} == {
+        'Produto teste A',
+        'Produto teste B',
+    }
+    assert recorded_sale['payment_date'] == date.today().isoformat()
+    renewal_date = date.today().replace(year=date.today().year + 1).isoformat()
+    renewal_reminders = [
+        reminder
+        for reminder in optical_client.call('reminders')
+        if reminder['type'] == 'renewal'
+        and int(reminder['client_id']) == int(client_id)
+        and reminder['due_date'] == renewal_date
+    ]
+    assert len(renewal_reminders) == 1
 
-    # Falhas de estoque e pagamento não podem deixar alterações parciais.
+    # Falha em um item não pode baixar o estoque de nenhum produto.
     optical_client.call('sales', sale, expected=422)
-    assert optical_client.call('products')[0]['stock'] == 1
+    stocks_after_failure = {
+        int(product['id']): int(product['stock']) for product in optical_client.call('products')
+    }
+    assert stocks_after_failure == stocks
     assert len(optical_client.call('sales')) == 1
-    optical_client.call('sales', dict(sale, quantity=1, paid='99'), expected=422)
-    assert optical_client.call('products')[0]['stock'] == 1
+    smaller_sale = dict(
+        sale,
+        items=[
+            dict(product_id=product_a['id'], quantity=1),
+            dict(product_id=product_b['id'], quantity=1),
+        ],
+        paid='99',
+    )
+    optical_client.call('sales', smaller_sale, expected=422)
+    assert {
+        int(product['id']): int(product['stock']) for product in optical_client.call('products')
+    } == stocks
 
     # A ordem pode avançar de etapa após ser criada.
     optical_client.call(
@@ -106,6 +158,12 @@ def main():
     order_id = optical_client.call('orders')[0]['id']
     optical_client.call('orders', dict(id=order_id, status='ready'), method='PATCH')
     assert optical_client.call('orders')[0]['status'] == 'ready'
+    pickup_reminders = [
+        reminder
+        for reminder in optical_client.call('reminders')
+        if reminder['type'] == 'pickup' and f'ordem #{order_id}' in reminder['message']
+    ]
+    assert len(pickup_reminders) == 1
 
     # Uma segunda empresa não deve acessar clientes ou operações da primeira.
     other_company = Client()

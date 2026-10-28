@@ -28,6 +28,18 @@ function renderTextarea(name, label, { required = false, attributes = '', value 
   `;
 }
 
+function renderCheckbox(name, label, description, checked = false) {
+  return `
+    <label class="consent-field">
+      <input name="${name}" type="checkbox" value="1" ${checked ? 'checked' : ''}>
+      <span>
+        <strong>${label}</strong>
+        <small>${description}</small>
+      </span>
+    </label>
+  `;
+}
+
 function renderSelect(name, label, items, options = {}) {
   const { required = true, emptyLabel = 'Selecione', selectedId = '' } = options;
   const choices = items
@@ -55,6 +67,68 @@ function localDateTimeValue() {
   const now = new Date();
   const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
   return localTime.toISOString().slice(0, 16);
+}
+
+function renderSaleItem(products) {
+  const options = products
+    .filter((product) => Number(product.stock) > 0)
+    .map(
+      (product) => `
+        <option value="${escapeHtml(product.id)}">
+          ${escapeHtml(product.name)} · ${formatMoney(product.price)} · ${escapeHtml(product.stock)} un.
+        </option>
+      `,
+    )
+    .join('');
+  return `
+    <div class="sale-item-row">
+      <label>
+        Produto
+        <select name="item_product_id" class="sale-product" required>
+          <option value="">Selecione</option>
+          ${options}
+        </select>
+      </label>
+      <label>
+        Quantidade
+        <input name="item_quantity" class="sale-quantity" type="number" min="1" step="1" value="1" required>
+      </label>
+      <button class="remove-sale-item secondary" type="button" aria-label="Remover item">Remover</button>
+      <strong class="sale-item-subtotal">R$ 0,00</strong>
+    </div>
+  `;
+}
+
+function updateSaleTotal(products) {
+  let total = 0;
+  document.querySelectorAll('.sale-item-row').forEach((row) => {
+    const product = products.find(
+      (item) => String(item.id) === row.querySelector('.sale-product').value,
+    );
+    const quantity = Math.max(0, Number(row.querySelector('.sale-quantity').value) || 0);
+    const subtotal = product ? Number(product.price) * quantity : 0;
+    row.querySelector('.sale-item-subtotal').textContent = formatMoney(subtotal);
+    total += subtotal;
+  });
+  selectElement('#sale-total').textContent = `Total: ${formatMoney(total)}`;
+}
+
+function updateAddSaleItemButton() {
+  const button = selectElement('#add-sale-item');
+  const rows = [...document.querySelectorAll('.sale-item-row')];
+  if (!button || rows.length === 0) return;
+
+  const lastRow = rows.at(-1);
+  const hasProduct = Boolean(lastRow.querySelector('.sale-product').value);
+  const quantity = Number(lastRow.querySelector('.sale-quantity').value);
+  const canAddItem = hasProduct && Number.isInteger(quantity) && quantity > 0;
+
+  button.disabled = !canAddItem || rows.length >= 50;
+  button.title = canAddItem
+    ? rows.length >= 50
+      ? 'Limite de 50 itens atingido'
+      : ''
+    : 'Preencha o produto e a quantidade do item atual';
 }
 
 export async function openRecordForm(view, record = null) {
@@ -98,6 +172,12 @@ export async function openRecordForm(view, record = null) {
         required: false,
         value: record?.next_contact_date,
       }) +
+      renderCheckbox(
+        'message_consent',
+        'Cliente autorizou o recebimento de mensagens',
+        'Marque somente após o cliente aceitar contatos da ótica por telefone ou WhatsApp.',
+        Number(record?.message_consent) === 1,
+      ) +
       renderTextarea('notes', 'Observações', {
         attributes: 'maxlength="2000"',
         value: record?.notes,
@@ -140,14 +220,18 @@ export async function openRecordForm(view, record = null) {
 
   if (view === 'reminders') {
     const clients = await requestApi('clients');
+    const authorizedClients = clients.filter(
+      (client) => Number(client.message_consent) === 1 && client.phone,
+    );
     html =
-      renderSelect('client_id', 'Cliente', clients) +
+      renderSelect('client_id', 'Cliente autorizado', authorizedClients) +
       renderSelect('type', 'Tipo de lembrete', labelOptions(reminderTypeLabels)) +
       renderInput('due_date', 'Data do lembrete', { type: 'date' }) +
       renderTextarea('message', 'Mensagem', {
         required: true,
         attributes: 'maxlength="500" placeholder="Escreva a mensagem que será usada no contato"',
-      });
+      }) +
+      '<p class="hint">A lista mostra somente clientes que autorizaram mensagens e possuem telefone.</p>';
   }
 
   if (view === 'products') {
@@ -175,27 +259,20 @@ export async function openRecordForm(view, record = null) {
     products = await requestApi('products');
     html =
       renderSelect('client_id', 'Cliente', clients) +
-      renderSelect(
-        'product_id',
-        'Produto',
-        products
-          .filter((product) => product.stock > 0)
-          .map((product) => ({
-            ...product,
-            name: `${product.name} · ${formatMoney(product.price)} · ${product.stock} un.`,
-          })),
-      ) +
-      renderInput('quantity', 'Quantidade', {
-        type: 'number',
-        attributes: 'min="1" step="1"',
-        value: 1,
+      `<div class="sale-items-heading"><strong>Itens da venda</strong><span>Até 50 itens</span></div>` +
+      `<div id="sale-items">${renderSaleItem(products)}</div>` +
+      '<button id="add-sale-item" class="secondary add-sale-item" type="button">+ Adicionar produto</button>' +
+      renderInput('payment_date', 'Data do pagamento', {
+        type: 'date',
+        value: localDateTimeValue().slice(0, 10),
+        attributes: `max="${localDateTimeValue().slice(0, 10)}"`,
       }) +
       renderInput('paid', 'Valor pago (R$)', {
         type: 'number',
         attributes: 'min="0" step="0.01"',
         value: 0,
       }) +
-      '<p class="hint" id="sale-total">Selecione um produto para calcular o total.</p>';
+      '<p class="sale-total" id="sale-total">Total: R$ 0,00</p>';
   }
 
   if (view === 'orders') {
@@ -218,6 +295,7 @@ export async function openRecordForm(view, record = null) {
   selectElement('#modal-title').textContent =
     view === 'clients' && record ? 'Editar cliente' : formTitles[view];
   selectElement('#fields').innerHTML = html;
+  selectElement('#modal').classList.toggle('wide-modal', view === 'sales');
   if (view === 'clients' && record) {
     ['name', 'phone', 'email', 'birth_date', 'next_contact_date', 'notes'].forEach((field) => {
       form.elements[field].value = record[field] ?? '';
@@ -225,13 +303,30 @@ export async function openRecordForm(view, record = null) {
   }
   selectElement('#form-error').textContent = '';
   selectElement('#modal').showModal();
-  selectElement('#fields').oninput = () => {
+  const fields = selectElement('#fields');
+  fields.oninput = () => {
     if (view === 'sales') {
-      const form = selectElement('#record-form');
-      const product = products.find((item) => item.id == form.elements.product_id.value);
-      selectElement('#sale-total').textContent =
-        'Total: ' +
-        formatMoney(product ? Number(product.price) * Number(form.elements.quantity.value) : 0);
+      updateSaleTotal(products);
+      updateAddSaleItemButton();
     }
   };
+  fields.onclick = (event) => {
+    if (view !== 'sales') return;
+    if (event.target.closest('#add-sale-item')) {
+      const rows = selectElement('#sale-items');
+      const lastRow = rows.lastElementChild;
+      const productId = lastRow.querySelector('.sale-product').value;
+      const quantity = Number(lastRow.querySelector('.sale-quantity').value);
+      if (productId && Number.isInteger(quantity) && quantity > 0 && rows.children.length < 50) {
+        rows.insertAdjacentHTML('beforeend', renderSaleItem(products));
+      }
+    }
+    const removeButton = event.target.closest('.remove-sale-item');
+    if (removeButton && document.querySelectorAll('.sale-item-row').length > 1) {
+      removeButton.closest('.sale-item-row').remove();
+    }
+    updateSaleTotal(products);
+    updateAddSaleItemButton();
+  };
+  if (view === 'sales') updateAddSaleItemButton();
 }

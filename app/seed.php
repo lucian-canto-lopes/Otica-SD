@@ -61,6 +61,59 @@ addColumn('companies', 'logo_data', 'MEDIUMTEXT NULL');
 addColumn('clients', 'email', "VARCHAR(190) NOT NULL DEFAULT ''");
 addColumn('clients', 'birth_date', 'DATE NULL');
 addColumn('clients', 'next_contact_date', 'DATE NULL');
+addColumn('clients', 'message_consent', 'TINYINT(1) NOT NULL DEFAULT 0');
+addColumn('clients', 'message_consent_at', 'DATETIME NULL');
+addColumn('sales', 'payment_date', 'DATE NULL');
+executeQuery('UPDATE sales SET payment_date = DATE(created_at) WHERE payment_date IS NULL');
+executeQuery('ALTER TABLE sales MODIFY COLUMN payment_date DATE NOT NULL');
+
+executeQuery(
+    <<<'SQL'
+    CREATE TABLE IF NOT EXISTS sale_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      company_id INT NOT NULL,
+      sale_id INT NOT NULL,
+      product_id INT NOT NULL,
+      quantity INT NOT NULL,
+      unit_price DECIMAL(12, 2) NOT NULL,
+      subtotal DECIMAL(12, 2) NOT NULL,
+      CONSTRAINT fk_sale_items_company FOREIGN KEY (company_id) REFERENCES companies (id),
+      CONSTRAINT fk_sale_items_sale FOREIGN KEY (sale_id) REFERENCES sales (id),
+      CONSTRAINT fk_sale_items_product FOREIGN KEY (product_id) REFERENCES products (id)
+    )
+    SQL
+    ,
+);
+if (columnExists('sales', 'product_id') && columnExists('sales', 'quantity')) {
+    executeQuery(
+        <<<'SQL'
+        INSERT INTO sale_items (
+          company_id,
+          sale_id,
+          product_id,
+          quantity,
+          unit_price,
+          subtotal
+        )
+        SELECT
+          sale.company_id,
+          sale.id,
+          sale.product_id,
+          sale.quantity,
+          ROUND(sale.total / sale.quantity, 2),
+          sale.total
+        FROM sales sale
+        LEFT JOIN sale_items item ON item.sale_id = sale.id
+        WHERE sale.product_id IS NOT NULL
+          AND sale.quantity > 0
+          AND item.id IS NULL
+        SQL
+        ,
+    );
+    executeQuery(
+        'ALTER TABLE sales MODIFY COLUMN product_id INT NULL, MODIFY COLUMN quantity INT NULL',
+    );
+}
 
 executeQuery(
     <<<'SQL'

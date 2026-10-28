@@ -41,19 +41,19 @@ Para parar sem apagar dados: `docker compose down`. O volume `mysql_data` preser
 
 - **Administração geral:** cadastro de óticas e de seus responsáveis, consulta das empresas e controle manual da assinatura como avaliação, ativa ou suspensa.
 - **Identidade da ótica:** cada responsável pode definir o nome e o logo exibidos no próprio ambiente.
-- **Clientes e CRM:** cadastro de telefone, e-mail, data de nascimento, próximo contato e observações. A listagem também apresenta a última compra registrada.
+- **Clientes e CRM:** cadastro de telefone, e-mail, data de nascimento, próximo contato, observações e aceite para recebimento de mensagens. A data do aceite fica registrada e a listagem também apresenta a última compra.
 - **Interações:** histórico de contatos por WhatsApp, ligação, atendimento presencial, e-mail ou outro canal, com data, assunto e observações.
-- **Central de relacionamento:** lembretes de aniversário, renovação dos óculos, retirada, acompanhamento ou outro motivo, vinculados opcionalmente a um cliente e marcados como pendentes ou concluídos.
-- **Preparação automática:** o worker consulta o banco a cada cinco minutos e cria tarefas para próximos contatos, aniversários nos próximos 30 dias e ordens prontas para retirada. Uma chave de origem evita a criação repetida do mesmo lembrete.
+- **Central de relacionamento:** lembretes de aniversário, renovação dos óculos, retirada, acompanhamento ou outro motivo, vinculados a clientes que autorizaram mensagens e marcados como pendentes ou concluídos.
+- **Preparação automática:** ao salvar um cliente, os lembretes de próximo contato e aniversário são criados imediatamente; uma venda agenda a renovação dos óculos para um ano após a data do pagamento; quando uma ordem chega à etapa pronta, a retirada também aparece na central na mesma hora. O worker repete a conferência a cada cinco minutos como garantia. Somente clientes com aceite e telefone entram nesse fluxo, e uma chave de origem evita duplicações.
 - **WhatsApp:** os atalhos abrem uma conversa no WhatsApp com o telefone cadastrado. O contato e o envio da mensagem são realizados manualmente; o protótipo não usa a API oficial do WhatsApp nem envia mensagens automaticamente.
 - **Parceiros:** cadastro de fornecedores e laboratórios. Produtos podem ser vinculados a um fornecedor, e ordens de serviço a um laboratório.
-- **Vendas e estoque:** registro de vendas com baixa segura do estoque. O preço vem do banco, o total é calculado na API e o pagamento não pode superar o total.
+- **Vendas e estoque:** cada venda aceita vários produtos e quantidades, registra a data do pagamento e agenda o relacionamento de renovação. Os preços vêm do banco, o total é calculado na API e o pagamento não pode superar o total.
 - **Ordens de serviço:** acompanhamento nas etapas recebida, enviada ao laboratório, em produção no laboratório, recebida do laboratório, pronta e entregue. Cada alteração cria um evento no histórico com data e observação.
 - **Painel:** clientes, estoque, vendas, valores a receber, aniversários dos próximos 30 dias, lembretes pendentes, ordens atrasadas e produtos com estoque baixo.
 
 Todas as consultas operacionais usam a empresa da sessão. IDs enviados pelo navegador não permitem acessar clientes, parceiros, produtos, ordens, interações ou lembretes de outra ótica. Empresas suspensas perdem o acesso operacional imediatamente, inclusive em sessões existentes.
 
-A venda e a baixa de estoque são gravadas em uma transação com bloqueio da linha do produto, evitando vendas concorrentes acima do estoque disponível. As mudanças de etapa de uma ordem e seu evento de histórico também são gravados em uma única transação.
+A venda, seus itens e todas as baixas de estoque são gravados em uma transação com bloqueio dos produtos, evitando vendas concorrentes acima do estoque disponível. Se um item falhar, nenhum estoque é alterado. As mudanças de etapa de uma ordem e seu evento de histórico também são gravados em uma única transação.
 
 O sistema usa senhas com `password_hash`, consultas parametrizadas, sessão HttpOnly/SameSite e token CSRF para alterações autenticadas.
 
@@ -89,9 +89,9 @@ Para confirmar o processamento em segundo plano, consulte o log após iniciar os
 docker compose logs --tail=20 worker
 ```
 
-O worker executa uma primeira verificação ao iniciar e depois repete o trabalho a cada cinco minutos. Os lembretes preparados podem ser conferidos na **Central de relacionamento**.
+As ações do cadastro e das ordens criam os lembretes imediatamente. O worker executa uma primeira verificação ao iniciar e depois repete o trabalho a cada cinco minutos para recuperar qualquer pendência. Os lembretes podem ser conferidos na **Central de relacionamento**. O aceite é desmarcado por padrão; marque-o no cadastro do cliente somente após receber a autorização.
 
-1. Entre na Ótica Central e cadastre um cliente com aniversário e próximo contato.
+1. Entre na Ótica Central e cadastre um cliente com aniversário, próximo contato e aceite para mensagens.
 2. Cadastre um fornecedor e um laboratório na área **Parceiros**.
 3. Cadastre um produto vinculado ao fornecedor, registre uma venda e confira o estoque e os indicadores.
 4. Registre uma interação com o cliente e crie um lembrete na central de relacionamento.
@@ -103,7 +103,7 @@ O worker executa uma primeira verificação ao iniciar e depois repete o trabalh
 
 ## Limites e evolução
 
-Assinaturas são administradas manualmente, sem cobrança real. O worker prepara os lembretes na tabela, mas não envia WhatsApp, e-mail ou qualquer outra mensagem. A integração com a API oficial do WhatsApp, emissão fiscal, recuperação de senha, filiais, funcionários e permissões adicionais, múltiplos itens por venda, recebimentos posteriores e ajustes de estoque ficam para próximas etapas.
+Assinaturas são administradas manualmente, sem cobrança real. O worker prepara os lembretes na tabela, mas não envia WhatsApp, e-mail ou qualquer outra mensagem. A integração com a API oficial do WhatsApp, emissão fiscal, recuperação de senha, filiais, funcionários e permissões adicionais, recebimentos posteriores e ajustes de estoque ficam para próximas etapas.
 
 Os contêineres demonstram a comunicação entre interface, API, worker e banco, mas ainda não há fila de mensagens, replicação, alta disponibilidade nem sessões distribuídas.
 

@@ -1,9 +1,9 @@
 import { selectElement } from './js/utils.js?v=6';
 import { pageTitles, createButtonLabels } from './js/constants.js?v=6';
 import { requestApi, setSession } from './js/api.js?v=6';
-import { renderRecordsTable } from './js/tables.js?v=7';
+import { renderRecordsTable } from './js/tables.js?v=10';
 import { renderDashboard } from './js/dashboard.js?v=6';
-import { openRecordForm } from './js/forms.js?v=7';
+import { openRecordForm } from './js/forms.js?v=11';
 import { bindBrandingForm, renderBranding } from './js/branding.js?v=6';
 
 let currentView;
@@ -115,17 +115,19 @@ async function loadPage(page = currentView) {
     orders: 'ordens de serviço',
   };
   const countLabel = countLabels[page] || 'registros';
-  const subscriptionHint =
+  const pageHint =
     page === 'companies'
       ? '<p class="hint">Gerencie o acesso das empresas. As assinaturas são controladas manualmente neste protótipo.</p>'
-      : '';
+      : page === 'reminders'
+        ? '<p class="hint">Os lembretes aparecem automaticamente para acompanhamento, aniversário, renovação um ano após o pagamento e retirada de ordens prontas.</p>'
+        : '';
   selectElement('#content').innerHTML = `
     <div class="toolbar">
       <h2>${records.length} ${countLabel}</h2>
       <button id="new">+ ${createButtonLabels[page]}</button>
     </div>
     ${renderRecordsTable(page, records)}
-    ${subscriptionHint}
+    ${pageHint}
   `;
   selectElement('#new').onclick = () => openRecordForm(page).catch(showNotice);
   document.querySelectorAll('[data-status]').forEach((select) => {
@@ -181,6 +183,14 @@ async function saveRecord(event) {
   saveButton.disabled = true;
   try {
     const input = Object.fromEntries(new FormData(event.target));
+    if (currentView === 'sales') {
+      input.items = [...event.target.querySelectorAll('.sale-item-row')].map((row) => ({
+        product_id: row.querySelector('.sale-product').value,
+        quantity: row.querySelector('.sale-quantity').value,
+      }));
+      delete input.item_product_id;
+      delete input.item_quantity;
+    }
     const method = event.target.dataset.method || 'POST';
     if (method === 'PATCH') {
       input.id = event.target.dataset.recordId;

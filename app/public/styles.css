@@ -209,6 +209,31 @@ textarea:focus {
 textarea {
   min-height: 80px;
 }
+.consent-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid #cfe0da;
+  border-radius: 10px;
+  background: #f4f8f6;
+}
+.consent-field input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+}
+.consent-field strong,
+.consent-field small {
+  display: block;
+}
+.consent-field small {
+  margin-top: 5px;
+  color: #748580;
+  font-weight: 400;
+  line-height: 1.45;
+}
 /* Estrutura da área autenticada */
 #app:not([hidden]) {
   display: flex;
@@ -440,6 +465,19 @@ td select {
   color: #39705b;
   font-size: 11px;
 }
+.badge.denied {
+  background: #f7e8e5;
+  color: #a4473d;
+}
+.consent-status {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+}
+.consent-status small {
+  font-size: 10px;
+  white-space: normal;
+}
 .empty {
   text-align: center;
   padding: 45px;
@@ -453,6 +491,82 @@ dialog {
   width: min(480px, 92vw);
   max-height: 90vh;
   box-shadow: 0 25px 90px #123e3733;
+}
+dialog.wide-modal {
+  width: min(760px, 94vw);
+}
+.sale-items-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20px 0 10px;
+  font-size: 13px;
+}
+.sale-items-heading span {
+  color: #83948c;
+  font-size: 11px;
+}
+#sale-items {
+  display: grid;
+  gap: 10px;
+}
+.sale-item-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 110px auto;
+  align-items: end;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #dce7e3;
+  border-radius: 11px;
+  background: #f7faf9;
+}
+.sale-item-row label {
+  margin: 0;
+}
+.sale-item-row input,
+.sale-item-row select {
+  margin-top: 6px;
+}
+.sale-item-row .remove-sale-item {
+  margin-bottom: 1px;
+  padding: 12px;
+}
+.sale-item-subtotal {
+  grid-column: 1 / -1;
+  color: #39705b;
+  font-size: 12px;
+  text-align: right;
+}
+.add-sale-item {
+  width: 100%;
+  margin-top: 10px;
+}
+.add-sale-item:disabled {
+  cursor: not-allowed;
+}
+.sale-total {
+  margin: 18px 0 0;
+  color: #1c5649;
+  font-size: 18px;
+  font-weight: 750;
+  text-align: right;
+}
+.sale-items-summary {
+  display: grid;
+  gap: 8px;
+  min-width: 190px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  white-space: normal;
+}
+.sale-items-summary li span,
+.sale-items-summary li small {
+  display: block;
+}
+.sale-items-summary li small {
+  margin-top: 2px;
+  color: #7d8f88;
 }
 .settings-card {
   max-width: 680px;
@@ -600,6 +714,17 @@ dialog::backdrop {
   background: #244137;
   color: #9fd2bd;
 }
+[data-theme='dark'] .badge.denied {
+  background: #492f2d;
+  color: #f1aaa1;
+}
+[data-theme='dark'] .consent-field {
+  border-color: #344d48;
+  background: #142320;
+}
+[data-theme='dark'] .consent-field small {
+  color: #9fb3ae;
+}
 [data-theme='dark'] .whatsapp-link {
   border-color: #365e52;
   background: #1d3b32;
@@ -622,6 +747,14 @@ dialog::backdrop {
 [data-theme='dark'] .branding-preview {
   border-color: #48635d;
   background: #10201d;
+}
+[data-theme='dark'] .sale-item-row {
+  border-color: #344d48;
+  background: #142320;
+}
+[data-theme='dark'] .sale-item-subtotal,
+[data-theme='dark'] .sale-total {
+  color: #9fd2bd;
 }
 [data-theme='dark'] .branding-placeholder,
 [data-theme='dark'] #notice {
@@ -646,6 +779,13 @@ dialog::backdrop {
 @media (max-width: 700px) {
   .login-layout {
     grid-template-columns: 1fr;
+  }
+  .sale-item-row {
+    grid-template-columns: 1fr;
+  }
+  .sale-item-subtotal {
+    grid-column: 1;
+    text-align: left;
   }
   .intro {
     padding: 28px;
