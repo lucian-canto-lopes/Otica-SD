@@ -1,5 +1,8 @@
 FROM php:8.3-apache
-RUN docker-php-ext-install pdo_mysql \
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libcurl4-openssl-dev libonig-dev \
+ && docker-php-ext-install pdo_mysql mbstring curl \
+ && rm -rf /var/lib/apt/lists/* \
  && printf "upload_max_filesize=20M\npost_max_size=22M\nmemory_limit=256M\nexpose_php=Off\n" > /usr/local/etc/php/conf.d/ocular.ini
 COPY api/ /var/www/html/
 COPY config/ /var/www/config/

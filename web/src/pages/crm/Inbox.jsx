@@ -254,6 +254,7 @@ function NewConversation({ open, onClose }) {
     <Modal
       open={open}
       title="Nova conversa"
+      size="new-conversation"
       onClose={onClose}
       footer={
         <>
