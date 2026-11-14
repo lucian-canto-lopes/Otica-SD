@@ -43,6 +43,14 @@ export function SessionProvider({ children }) {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (!session?.company?.id) return undefined;
+    const heartbeat = window.setInterval(() => {
+      api.get('me').catch(() => {});
+    }, 4 * 60 * 1000);
+    return () => window.clearInterval(heartbeat);
+  }, [session?.company?.id]);
+
   const value = useMemo(() => {
     const permissions = session?.permissions || [];
     return {

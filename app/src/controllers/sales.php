@@ -119,6 +119,9 @@ function handleSales(string $method, array $input): never
         if (query('balance') === '1') {
             $where .= ' AND s.total - s.paid > 0.009';
         }
+        if (query('overdue') === '1') {
+            $where .= " AND s.status <> 'cancelled' AND EXISTS (SELECT 1 FROM sale_payments sp WHERE sp.sale_id = s.id AND sp.company_id = s.company_id AND sp.paid_at IS NULL AND sp.due_date < CURRENT_DATE AND sp.amount > 0)";
+        }
         $from = "FROM sales s LEFT JOIN clients c ON c.id = s.client_id LEFT JOIN users u ON u.id = s.seller_id {$where}";
         $result = paginate(
             'SELECT s.id, s.number, s.sale_date, s.delivery_date, s.status, s.subtotal, s.discount, s.total, s.paid,

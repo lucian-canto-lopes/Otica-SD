@@ -99,7 +99,7 @@ function login(array $input): never
         sendError('E-mail ou senha incorretos.', 401);
     }
     session_regenerate_id(true);
-    $_SESSION = ['uid' => (int) $user['id'], 'csrf' => bin2hex(random_bytes(24))];
+    $_SESSION = ['uid' => (int) $user['id'], 'csrf' => bin2hex(random_bytes(24)), 'login_key' => bin2hex(random_bytes(32))];
     executeQuery('UPDATE users SET last_login_at = NOW() WHERE id = ?', [$user['id']]);
 
     $companies = userCompanies((int) $user['id']);
@@ -107,6 +107,9 @@ function login(array $input): never
         $_SESSION['company_id'] = (int) $companies[0]['id'];
     }
     Context::$user = $user;
+    if (!empty($_SESSION['company_id'])) {
+        selectCompany((int) $_SESSION['company_id'], false);
+    }
     auditLog('login', 'user', (int) $user['id'], 'Acesso ao sistema', null, $_SESSION['company_id'] ?? null);
     sendJson(['ok' => true]);
 }
@@ -144,6 +147,9 @@ function loadContext(): void
     $companyId = (int) ($_SESSION['company_id'] ?? 0);
     if ($companyId) {
         selectCompany($companyId, false);
+        if (Context::$company) {
+            registerCurrentCompanySession();
+        }
     }
 }
 
@@ -182,6 +188,65 @@ function selectCompany(int $companyId, bool $strict = true): void
     $_SESSION['company_id'] = $companyId;
     Context::$company = $company;
     Context::$role = (string) $role;
+    if (!Context::$viaApiKey && !Context::isSuperadmin() && !empty($_SESSION['uid'])) {
+        registerCurrentCompanySession($strict);
+    }
+}
+
+/** Registra e renova a sessão deste usuário na ótica selecionada. */
+function registerCurrentCompanySession(bool $strict = true): void
+{
+    if (!Context::$company || !Context::userId() || Context::$viaApiKey || Context::isSuperadmin()) {
+        return;
+    }
+    $companyId = Context::companyId();
+    $userId = (int) Context::userId();
+    $hash = hash('sha256', session_id());
+    $loginKey = hash('sha256', (string) ($_SESSION['login_key'] ?? session_id()));
+    $now = date('Y-m-d H:i:s');
+    $expires = date('Y-m-d H:i:s', time() + 10 * 60);
+
+    $registered = inTransaction(static function () use ($companyId, $userId, $hash, $loginKey, $now, $expires): bool {
+        $membership = fetchOne(
+            'SELECT concurrent_screens FROM company_users WHERE company_id = ? AND user_id = ? AND active = 1 FOR UPDATE',
+            [$companyId, $userId],
+        );
+        if (!$membership) {
+            sendError('Seu acesso a esta ótica foi removido.', 403);
+        }
+        executeQuery('DELETE FROM user_sessions WHERE expires_at <= NOW()', []);
+        $current = fetchOne('SELECT id FROM user_sessions WHERE session_hash = ? OR session_hash = ?', [$hash, $loginKey]);
+        $active = (int) fetchValue(
+            'SELECT COUNT(*) FROM user_sessions WHERE company_id = ? AND user_id = ? AND expires_at > NOW() AND session_hash <> ?',
+            [$companyId, $userId, $hash],
+        );
+        if (!$current && $active >= max(1, (int) $membership['concurrent_screens'])) {
+            return false;
+        }
+        executeQuery(
+            'INSERT INTO user_sessions (session_hash, company_id, user_id, last_seen_at, expires_at)
+             VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE company_id = VALUES(company_id), user_id = VALUES(user_id), last_seen_at = VALUES(last_seen_at), expires_at = VALUES(expires_at)',
+            [$loginKey, $companyId, $userId, $now, $expires],
+        );
+        return true;
+    });
+    if (!$registered && $strict) {
+        sendError('Este usuário já atingiu o limite de telas simultâneas. Encerre outra sessão ou solicite mais telas ao proprietário.', 409, ['code' => 'session_limit']);
+    }
+    if (!$registered) {
+        unset($_SESSION['company_id']);
+        Context::$company = null;
+        Context::$role = '';
+        sendError('Este usuário já atingiu o limite de telas simultâneas. Encerre outra sessão ou solicite mais telas ao proprietário.', 409, ['code' => 'session_limit']);
+    }
+}
+
+function releaseCurrentCompanySession(): void
+{
+    if (session_id() !== '') {
+        $key = hash('sha256', (string) ($_SESSION['login_key'] ?? session_id()));
+        executeQuery('DELETE FROM user_sessions WHERE session_hash IN (?, ?)', [hash('sha256', session_id()), $key]);
+    }
 }
 
 function validateCsrfToken(string $method): void

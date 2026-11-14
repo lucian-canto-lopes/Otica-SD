@@ -12,6 +12,8 @@ Sistema multiótica: cada ótica tem seu ambiente isolado (clientes, vendas, est
 
 **Em cada ótica:**
 
+- **Equipe e sessões:** planos incluem proprietário + 1, 3 ou 5 funcionários; vagas adicionais têm preço mensal configurável. Cada pessoa tem limite de telas simultâneas, e telas extras precisam estar contratadas no pacote compartilhado da ótica. O painel inicial mostra a equipe e a aba **Configurações › Equipe** permite ajustar vagas, telas e encerrar sessões de funcionários. Sessões inativas expiram após 10 minutos; o logout as encerra imediatamente. A cobrança é estimada no protótipo e ainda não é debitada automaticamente.
+
 - **Clientes** com etiquetas múltiplas, receitas (OD/OE), autorização de mensagens (LGPD), ficha com indicadores e **linha do tempo** unificada (vendas, orçamentos, OS, atendimentos, mensagens, campanhas, não compras, anexos). Painel da carteira (recência, faixa etária, cidades, origem, aniversariantes, receitas vencendo, melhores clientes).
 - **Produtos e estoque** com histórico de movimentações, entrada de mercadoria, inventário e alerta de mínimo. **Fornecedores e laboratórios.**
 - **Orçamentos** → conversão em venda com um clique ou registro de perda com motivo.

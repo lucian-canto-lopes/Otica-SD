@@ -90,9 +90,9 @@ foreach ($files as $file) {
 
 if (!fetchValue('SELECT COUNT(*) FROM plans')) {
     foreach ([
-        ['Essencial', 89.90, 3, 3000, ['Clientes, vendas e OS', 'Pedidos em PDF', 'WhatsApp manual']],
-        ['Profissional', 169.90, 8, 15000, ['Tudo do Essencial', 'Campanhas e automações', 'API do WhatsApp', 'Relatórios flexíveis']],
-        ['Rede', 349.90, 30, 0, ['Tudo do Profissional', 'Várias lojas', 'Integrações e webhooks', 'Suporte prioritário']],
+        ['Essencial', 89.90, 2, 3000, ['Dono + 1 funcionário', 'Clientes, vendas e OS', 'Pedidos em PDF']],
+        ['Profissional', 169.90, 4, 15000, ['Dono + 3 funcionários', 'Tudo do Essencial', 'Campanhas, automações e relatórios']],
+        ['Rede', 349.90, 6, 0, ['Dono + 5 funcionários', 'Tudo do Profissional', 'Várias lojas e integrações']],
     ] as [$name, $price, $users, $clients, $features]) {
         insertRow('plans', ['name' => $name, 'price' => $price, 'max_users' => $users, 'max_clients' => $clients, 'features' => jsonColumn($features)]);
     }

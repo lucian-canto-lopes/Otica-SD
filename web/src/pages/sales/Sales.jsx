@@ -14,12 +14,13 @@ export default function Sales() {
   const { can } = useSession();
   const [term, setTerm] = useState('');
   const [status, setStatus] = useState('');
-  const [from, setFrom] = useState(params.get('balance') ? '' : monthStart(0));
-  const [to, setTo] = useState(params.get('balance') ? '' : today());
+  const [from, setFrom] = useState(params.get('balance') || params.get('overdue') || params.get('all') ? '' : monthStart(0));
+  const [to, setTo] = useState(params.get('balance') || params.get('overdue') || params.get('all') ? '' : today());
   const [balance, setBalance] = useState(params.get('balance') === '1');
+  const [overdue] = useState(params.get('overdue') === '1');
   const q = useDebounce(term, 300);
   const list = useListState({ key: 'sale_date', dir: 'desc' });
-  const { data, loading } = useApi('sales', { q, status, from, to, balance: balance ? 1 : undefined, ...list.params });
+  const { data, loading } = useApi('sales', { q, status, from, to, balance: balance ? 1 : undefined, overdue: overdue ? 1 : undefined, ...list.params });
   const summary = data?.summary;
 
   return (
@@ -38,6 +39,7 @@ export default function Sales() {
         </Field>
         <Select value={status} onChange={(e) => (setStatus(e.target.value), list.setPage(1))} placeholder="Todas as situações" options={Object.entries(SALE_STATUS).map(([value, s]) => ({ value, label: s.label }))} style={{ maxWidth: 190 }} />
         <Checkbox label="Com saldo a receber" checked={balance} onChange={(e) => (setBalance(e.target.checked), list.setPage(1))} />
+        {overdue && <span className="badge danger">Somente parcelas vencidas</span>}
       </div>
       {summary && (
         <div className="grid kpis">

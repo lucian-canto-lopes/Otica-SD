@@ -9,6 +9,7 @@ function handleMe(string $method, array $input): never
 function handleLogout(string $method, array $input): never
 {
     auditLog('logout', 'user', Context::userId(), 'Saída do sistema');
+    releaseCurrentCompanySession();
     $_SESSION = [];
     session_destroy();
     sendJson(['ok' => true]);
@@ -21,6 +22,7 @@ function handleSelectCompany(string $method, array $input): never
     }
     $companyId = (int) ($input['company_id'] ?? 0);
     if ($companyId === 0) {
+        releaseCurrentCompanySession();
         unset($_SESSION['company_id']);
         Context::$company = null;
         Context::$role = '';

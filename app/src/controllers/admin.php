@@ -209,7 +209,7 @@ function findOrCreateUser(string $email, string $name, string $password): int
 function linkUserToCompany(int $userId, int $companyId, string $role): void
 {
     executeQuery(
-        'INSERT INTO company_users (company_id, user_id, role, active) VALUES (?, ?, ?, 1)
+        'INSERT INTO company_users (company_id, user_id, role, active, concurrent_screens) VALUES (?, ?, ?, 1, 1)
          ON DUPLICATE KEY UPDATE role = VALUES(role), active = 1',
         [$companyId, $userId, $role],
     );
@@ -354,7 +354,9 @@ function handleAdminPlans(string $method, array $input): never
     $values = [
         'name' => requiredText($input, 'name', 80, 'nome'),
         'price' => moneyValue($input, 'price'),
-        'max_users' => (int) ($input['max_users'] ?? 3),
+        'max_users' => max(1, (int) ($input['max_users'] ?? 2)),
+        'extra_user_price' => moneyValue($input, 'extra_user_price'),
+        'extra_screen_price' => moneyValue($input, 'extra_screen_price'),
         'max_clients' => (int) ($input['max_clients'] ?? 0),
         'features' => jsonColumn(array_values(array_filter((array) ($input['features'] ?? []), 'is_string'))),
         'active' => array_key_exists('active', $input) ? booleanValue($input, 'active') : 1,

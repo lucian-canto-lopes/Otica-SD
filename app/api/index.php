@@ -22,6 +22,7 @@ const ROUTES = [
     'company' => ['handleCompanySettings', true],
     'company_logo' => ['handleCompanyLogo', true],
     'team' => ['handleTeam', true],
+    'team_seats' => ['handleTeamSeats', true],
     'tags' => ['handleTags', true],
     'loss_reasons' => ['handleLossReasons', true],
     'clients' => ['handleClients', true],

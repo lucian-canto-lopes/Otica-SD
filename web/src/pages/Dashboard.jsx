@@ -60,7 +60,7 @@ export default function Dashboard() {
 
       <div className="grid kpis" style={{ opacity: loading ? 0.6 : 1 }}>
         <Kpi icon={DollarSign} label="Vendas no período" value={compactMoney(sales.total)} delta={delta(sales.total, prev.total)} hint="vs. período anterior" onClick={() => navigate('/vendas')} />
-        <Kpi icon={ShoppingBag} label="Pedidos" value={number(sales.count)} delta={delta(sales.count, prev.count)} hint={`ticket médio ${money(sales.average_ticket)}`} />
+        <Kpi icon={ShoppingBag} label="Pedidos" value={number(sales.count)} delta={delta(sales.count, prev.count)} hint={`ticket médio ${money(sales.average_ticket)}`} onClick={() => navigate('/vendas?all=1')} />
         <Kpi icon={Receipt} label="A receber" value={compactMoney(data.receivable)} hint={`${data.overdue_installments.count} parcela(s) vencida(s)`} tone={data.overdue_installments.count ? 'danger' : undefined} onClick={() => navigate('/vendas?balance=1')} />
         <Kpi icon={TrendingUp} label="Conversão de orçamentos" value={percent(data.quotes.conversion)} hint={`${number(data.quotes.open)} em aberto · ${compactMoney(data.quotes.open_value)}`} onClick={() => navigate('/orcamentos')} />
         <Kpi icon={Glasses} label="OS em andamento" value={number(data.orders.open)} hint={`${number(data.orders.ready)} prontas · ${number(data.orders.late)} atrasadas`} tone={Number(data.orders.late) ? 'danger' : undefined} onClick={() => navigate('/os')} />
@@ -73,8 +73,24 @@ export default function Dashboard() {
         <Kpi icon={Cake} label="Aniversariantes" value={number(data.clients.birthdays_month)} hint={`${number(data.clients.birthdays_today)} hoje`} onClick={() => navigate('/clientes?birthday_window=this_month')} />
         <Kpi icon={CalendarClock} label="Receitas vencendo (30 dias)" value={number(data.prescriptions_expiring)} onClick={() => navigate('/clientes?prescription_expiring_days=30')} />
         <Kpi icon={Package} label="Estoque baixo" value={number(data.low_stock)} tone={data.low_stock ? 'warning' : undefined} onClick={() => navigate('/produtos?low_stock=1')} />
-        <Kpi icon={AlertTriangle} label="Parcelas vencidas" value={compactMoney(data.overdue_installments.amount)} tone={Number(data.overdue_installments.amount) ? 'danger' : undefined} />
+        <Kpi icon={AlertTriangle} label="Parcelas vencidas" value={compactMoney(data.overdue_installments.amount)} tone={Number(data.overdue_installments.amount) ? 'danger' : undefined} onClick={() => navigate('/vendas?overdue=1')} />
       </div>
+
+      <Card title="Equipe da ótica" actions={<Button size="sm" variant="ghost" onClick={() => navigate('/configuracoes/equipe')}>Gerenciar equipe</Button>}>
+        <div className="subtle" style={{ padding: '0 0 12px' }}>Funcionários vinculados à {company.trade_name || company.name}</div>
+        <div className="grid cols-3">
+          {(data.team || []).map((member) => (
+            <div key={member.id} className="mobile-item">
+              <div className="row between">
+                <strong className="truncate">{member.name}</strong>
+                <span className="badge">{member.role === 'owner' ? 'Proprietário' : member.role === 'manager' ? 'Gerente' : member.role === 'seller' ? 'Vendedor' : member.role === 'lab' ? 'Laboratório' : 'Somente leitura'}</span>
+              </div>
+              <div className="subtle truncate">{member.email}</div>
+              <div className="subtle">Telas em uso: {number(member.active_screens)} de {number(member.concurrent_screens)}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <div className="grid cols-3">
         <Card title="Vendas por dia" className="span-2">

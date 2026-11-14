@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, Plus, RotateCcw, Trash2, UserMinus } from 'lucide-react';
+import { Minus, Pencil, Plus, RotateCcw, Trash2, UserMinus } from 'lucide-react';
 import { api } from '../../lib/api.js';
 import { invalidate, useApi } from '../../lib/hooks.js';
 import { useSession } from '../../lib/session.jsx';
@@ -40,9 +40,36 @@ export function TeamTab() {
   const { can, user } = useSession();
   const canEdit = can('manage');
   const { data, loading, reload } = useApi('team');
+  const { data: seats, reload: reloadSeats } = useApi('team_seats');
   const confirm = useConfirm();
+  const toast = useToast();
   const { saving, run } = useSaver(reload);
   const [editing, setEditing] = useState(null);
+
+  const changeCapacity = async (key, amount) => {
+    const next = Math.max(0, Number(seats?.[key] || 0) + amount);
+    try {
+      await api.patch('team_seats', {
+        extra_user_slots: key === 'extra_user_slots' ? next : Number(seats?.extra_user_slots || 0),
+        extra_screen_slots: key === 'extra_screen_slots' ? next : Number(seats?.extra_screen_slots || 0),
+      });
+      toast.success('Limites da ótica atualizados');
+      reloadSeats();
+    } catch (error) {
+      toast.error(error);
+    }
+  };
+
+  const changeMemberScreens = async (member, amount) => {
+    const next = Math.max(1, Number(member.concurrent_screens || 1) + amount);
+    await run(() => api.patch('team', { concurrent_screens: next }, { id: member.id }), 'Limite de telas atualizado');
+    reloadSeats();
+  };
+
+  const endMemberSessions = async (member) => {
+    await run(() => api.patch('team', { end_sessions: true }, { id: member.id }), 'Sessões encerradas');
+    reloadSeats();
+  };
 
   const save = async (event) => {
     event.preventDefault();
@@ -59,6 +86,34 @@ export function TeamTab() {
   return (
     <div className="stack">
       {!canEdit && <ReadOnlyNotice />}
+      {canEdit && seats && (
+      <Card title="Vagas e telas contratadas">
+        <div className="subtle" style={{ paddingBottom: 12 }}>O plano inclui o proprietário e a quantidade de funcionários indicada. Vagas e telas extras têm cobrança mensal.</div>
+          <div className="grid cols-2">
+            <div className="stack sm">
+              <strong>Usuários da ótica</strong>
+              <span className="subtle">{number(seats.active_users)} de {number(seats.included_users + seats.extra_user_slots)} contas · {number(seats.included_users)} incluídas no plano</span>
+              <div className="row">
+                <Button size="sm" icon={Minus} disabled={!Number(seats.extra_user_slots)} onClick={() => changeCapacity('extra_user_slots', -1)} aria-label="Diminuir vagas extras" />
+                <Badge>{number(seats.extra_user_slots)} vaga(s) extra(s)</Badge>
+                <Button size="sm" icon={Plus} onClick={() => changeCapacity('extra_user_slots', 1)} aria-label="Aumentar vagas extras" />
+                <span className="subtle">{money(seats.extra_user_price)}/mês cada</span>
+              </div>
+            </div>
+            <div className="stack sm">
+              <strong>Telas simultâneas extras</strong>
+              <span className="subtle">{number(seats.assigned_extra_screens)} atribuída(s) de {number(seats.extra_screen_slots)} contratada(s)</span>
+              <div className="row">
+                <Button size="sm" icon={Minus} disabled={Number(seats.extra_screen_slots) <= Number(seats.assigned_extra_screens)} onClick={() => changeCapacity('extra_screen_slots', -1)} aria-label="Diminuir telas extras da ótica" />
+                <Badge>{number(seats.extra_screen_slots)} extra(s)</Badge>
+                <Button size="sm" icon={Plus} onClick={() => changeCapacity('extra_screen_slots', 1)} aria-label="Aumentar telas extras da ótica" />
+                <span className="subtle">{money(seats.extra_screen_price)}/mês cada</span>
+              </div>
+              <span><strong>Adicional estimado: {money(Number(seats.extra_user_slots) * Number(seats.extra_user_price) + Number(seats.extra_screen_slots) * Number(seats.extra_screen_price))}/mês</strong></span>
+            </div>
+          </div>
+        </Card>
+      )}
       <Card
         title="Equipe da ótica"
         bodyClass={null}
@@ -81,12 +136,23 @@ export function TeamTab() {
                 <Badge tone={Number(m.active) ? 'brand' : 'danger'}>{Number(m.active) ? ROLE_LABELS[m.role] : 'Sem acesso'}</Badge>
               </div>
               <div className="subtle truncate">{m.email}</div>
+              <div className="subtle">Telas ativas: {number(m.active_screens)} de {number(m.concurrent_screens || 1)}</div>
             </div>
           )}
           columns={[
             { key: 'name', label: 'Nome', render: (m) => (<div><strong>{m.name}</strong><div className="subtle">{m.email}</div></div>) },
             { key: 'role', label: 'Papel', render: (m) => <Badge tone="brand">{ROLE_LABELS[m.role]}</Badge> },
             { key: 'active', label: 'Acesso', render: (m) => (Number(m.active) ? <Badge tone="success">Ativo</Badge> : <Badge tone="danger">Removido</Badge>) },
+            { key: 'screens', label: 'Telas simultâneas', render: (m) => (
+              <div className="row">
+                <Badge tone={Number(m.active_screens) >= Number(m.concurrent_screens || 1) ? 'warning' : 'brand'}>{number(m.active_screens)} / {number(m.concurrent_screens || 1)}</Badge>
+                {canEdit && Number(m.active) && <span onClick={(e) => e.stopPropagation()} className="row">
+                  <Button size="sm" variant="ghost" icon={Minus} disabled={Number(m.concurrent_screens || 1) <= 1} onClick={() => changeMemberScreens(m, -1)} aria-label={`Diminuir telas de ${m.name}`} />
+                  <Button size="sm" variant="ghost" icon={Plus} onClick={() => changeMemberScreens(m, 1)} aria-label={`Aumentar telas de ${m.name}`} />
+                  {Number(m.active_screens) > 0 && m.id !== user?.id && <Button size="sm" variant="ghost" icon={RotateCcw} onClick={() => endMemberSessions(m)} title={`Encerrar sessões de ${m.name}`} aria-label={`Encerrar sessões de ${m.name}`} />}
+                </span>}
+              </div>
+            ) },
             { key: 'last_login_at', label: 'Último acesso', render: (m) => (m.last_login_at ? dateTime(m.last_login_at) : <span className="subtle">Nunca</span>) },
             {
               key: 'actions',

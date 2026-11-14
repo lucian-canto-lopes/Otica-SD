@@ -21,9 +21,10 @@ const TABS = [
 
 export default function Settings() {
   const { tab = 'otica' } = useParams();
+  const search = new URLSearchParams(window.location.search);
   const navigate = useNavigate();
   const { can } = useSession();
-  const active = TABS.find((t) => t.key === tab) || TABS[0];
+  const active = TABS.find((t) => t.key === tab) || TABS.find((t) => t.key === search.get('tab')) || TABS[0];
   const Component = active.component;
   return (
     <div className="stack">

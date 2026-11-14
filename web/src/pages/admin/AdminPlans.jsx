@@ -23,7 +23,7 @@ export default function AdminPlans() {
     setEditing(
       plan
         ? { ...plan, features: parseFeatures(plan.features).join('\n'), active: Boolean(Number(plan.active)) }
-        : { name: '', price: '', max_users: 3, max_clients: 0, features: '', active: true },
+        : { name: '', price: '', max_users: 2, max_clients: 0, extra_user_price: 0, extra_screen_price: 0, features: '', active: true },
     );
 
   const save = async (event) => {
@@ -76,8 +76,9 @@ export default function AdminPlans() {
                   <span className="kpi-value">{money(plan.price)}</span> <span className="subtle">/ mês</span>
                 </div>
                 <div className="subtle">
-                  Até {number(plan.max_users)} usuários · {Number(plan.max_clients) ? `${number(plan.max_clients)} clientes` : 'clientes ilimitados'}
+                  Até {number(plan.max_users)} usuários (inclui o proprietário) · {Number(plan.max_clients) ? `${number(plan.max_clients)} clientes` : 'clientes ilimitados'}
                 </div>
+                <div className="subtle">Vaga extra: {money(plan.extra_user_price || 0)}/mês · Tela extra: {money(plan.extra_screen_price || 0)}/mês</div>
                 <div className="stack sm">
                   {parseFeatures(plan.features).map((feature) => (
                     <span key={feature} className="row">
@@ -117,6 +118,12 @@ export default function AdminPlans() {
             </Field>
             <Field label="Máximo de usuários" className="c6">
               <Input type="number" min="1" value={editing.max_users} onChange={set('max_users')} />
+            </Field>
+            <Field label="Vaga extra mensal (R$)" className="c6">
+              <Input inputMode="decimal" min="0" value={editing.extra_user_price || 0} onChange={set('extra_user_price')} />
+            </Field>
+            <Field label="Tela simultânea extra mensal (R$)" className="c6">
+              <Input inputMode="decimal" min="0" value={editing.extra_screen_price || 0} onChange={set('extra_screen_price')} />
             </Field>
             <Field label="Máximo de clientes" hint="0 = ilimitado" className="c6">
               <Input type="number" min="0" value={editing.max_clients} onChange={set('max_clients')} />
