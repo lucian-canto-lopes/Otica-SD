@@ -19,6 +19,7 @@ const Quotes = lazy(() => import('./pages/sales/Quotes.jsx'));
 const QuoteEditor = lazy(() => import('./pages/sales/QuoteEditor.jsx'));
 const QuoteDetail = lazy(() => import('./pages/sales/QuoteDetail.jsx'));
 const Sales = lazy(() => import('./pages/sales/Sales.jsx'));
+const Fiscal = lazy(() => import('./pages/sales/Fiscal.jsx'));
 const SaleEditor = lazy(() => import('./pages/sales/SaleEditor.jsx'));
 const SaleDetail = lazy(() => import('./pages/sales/SaleDetail.jsx'));
 const ServiceOrders = lazy(() => import('./pages/orders/ServiceOrders.jsx'));
@@ -65,6 +66,7 @@ export default function App() {
       <Route path="orcamentos/:id" element={<QuoteDetail />} />
       <Route path="orcamentos/:id/editar" element={<QuoteEditor />} />
       <Route path="vendas" element={<Sales />} />
+      <Route path="fiscal" element={<Fiscal />} />
       <Route path="vendas/nova" element={<SaleEditor />} />
       <Route path="vendas/:id" element={<SaleDetail />} />
       <Route path="vendas/:id/editar" element={<SaleEditor />} />

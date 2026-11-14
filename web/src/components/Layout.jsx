@@ -34,6 +34,7 @@ function navGroups(can, counts) {
       items: [
         { to: '/orcamentos', label: 'Orçamentos', icon: FileText },
         { to: '/vendas', label: 'Vendas', icon: ShoppingBag },
+        { to: '/fiscal', label: 'Notas fiscais (teste)', icon: Receipt },
         { to: '/os', label: 'Ordens de serviço', icon: Glasses },
       ],
     },

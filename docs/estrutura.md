@@ -26,6 +26,8 @@ web/                      Código-fonte da interface React
 tests/smoke.sh            Teste de fumaça do fluxo principal
 ```
 
+O módulo fiscal experimental fica em `controllers/fiscal.php`, com persistência criada pela migração `003_fiscal_simulation.sql`. Ele gera documentos de demonstração associados a vendas no ambiente `simulation`, sem certificado e sem transmitir à SEFAZ. XML e PDF contêm aviso explícito de ausência de valor fiscal.
+
 ## Fluxo de uma requisição
 
 1. A interface chama `api/index.php?action=sales` (no XAMPP via `app/public/api/index.php`; no Docker o Nginx encaminha `/api/`).

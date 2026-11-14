@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Download, Edit3, Glasses, Printer, XCircle } from 'lucide-react';
-import { api, pdfUrl } from '../../lib/api.js';
+import { api, apiUrl, pdfUrl } from '../../lib/api.js';
 import { invalidate, useApi } from '../../lib/hooks.js';
 import { useSession } from '../../lib/session.jsx';
 import { cpf, date, dateTime, money, phone } from '../../lib/format.js';
@@ -17,6 +17,9 @@ export default function SaleDetail() {
   const { data: sale, loading, reload } = useApi('sales', { id });
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState('');
+  const [fiscalBusy, setFiscalBusy] = useState(false);
+  const { data: fiscalList, reload: reloadFiscal } = useApi('fiscal');
+  const fiscalDoc = fiscalList?.data?.find((document) => Number(document.sale_id) === Number(id));
 
   if (loading && !sale) return <Loading />;
   if (!sale) return <Empty title="Venda não encontrada" />;
@@ -44,6 +47,15 @@ export default function SaleDetail() {
       toast.error(error);
     }
   };
+  const simulateFiscal = async () => {
+    setFiscalBusy(true);
+    try {
+      await api.post('fiscal', { action: 'simulate', sale_id: Number(id), model: '55' });
+      toast.success('Documento de teste gerado, sem valor fiscal');
+      reloadFiscal();
+    } catch (error) { toast.error(error); }
+    finally { setFiscalBusy(false); }
+  };
   const firstName = (sale.client_name || '').split(' ')[0];
   const message = `Olá, ${firstName}! Aqui está o resumo do seu pedido nº ${sale.number} na ${company.trade_name || company.name}: total ${money(sale.total)}${sale.delivery_date ? `, previsão de entrega ${date(sale.delivery_date)}` : ''}. Obrigado pela preferência!`;
 
@@ -61,6 +73,7 @@ export default function SaleDetail() {
             <a className="btn icon" href={pdfUrl('sale', sale.id, true)} title="Baixar PDF" aria-label="Baixar PDF">
               <Download size={17} />
             </a>
+            {!cancelled && (fiscalDoc ? <><a className="btn" href={apiUrl('fiscal_xml', { id: fiscalDoc.id })}>XML de teste</a><a className="btn" href={apiUrl('fiscal_pdf', { id: fiscalDoc.id })}>PDF fiscal de teste</a></> : can('finance') && <Button loading={fiscalBusy} icon={Printer} onClick={simulateFiscal}>Simular nota</Button>)}
             {sale.client_whatsapp && <WhatsAppButton phone={sale.client_whatsapp} text={message} size="" label="Enviar resumo" />}
             {can('sell') && !cancelled && (
               <Button icon={Edit3} onClick={() => navigate(`/vendas/${sale.id}/editar`)}>

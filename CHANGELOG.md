@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## Próxima versão — módulo fiscal de simulação
+
+- Documentos fiscais de teste vinculados às vendas, com histórico por ótica, sequências por modelo e série, XML e PDF marcados como sem valor fiscal.
+- Nenhum certificado é exigido e nenhum documento é enviado à SEFAZ.
+
 O projeto segue [versionamento semântico](https://semver.org/lang/pt-BR/): MAIOR para mudanças incompatíveis, MENOR para novas funcionalidades e CORREÇÃO para ajustes.
 
 ## 2.1.0 — 2026-10-28
