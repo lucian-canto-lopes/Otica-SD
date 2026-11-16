@@ -3,7 +3,7 @@ import { Minus, Pencil, Plus, RotateCcw, Trash2, UserMinus } from 'lucide-react'
 import { api } from '../../lib/api.js';
 import { invalidate, useApi } from '../../lib/hooks.js';
 import { useSession } from '../../lib/session.jsx';
-import { dateTime, number } from '../../lib/format.js';
+import { dateTime, money, number } from '../../lib/format.js';
 import { ROLE_LABELS } from '../../lib/constants.js';
 import { Badge, Button, Card, DataTable, Empty, Field, Input, Modal, Select, TagChip, useConfirm, useToast } from '../../components/ui.jsx';
 import { ReadOnlyNotice } from './common.jsx';
