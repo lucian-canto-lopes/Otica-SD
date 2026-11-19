@@ -18,8 +18,8 @@ function buildClientFilter(array $f, int $companyId): array
     if ($has('q')) {
         $term = likeTerm((string) $f['q']);
         $digits = onlyDigits((string) $f['q']);
-        $condition = '(c.name LIKE ? OR c.nickname LIKE ? OR c.email LIKE ?';
-        array_push($params, $term, $term, $term);
+        $condition = '(c.name LIKE ? OR c.nickname LIKE ? OR c.email LIKE ? OR c.cnpj LIKE ?';
+        array_push($params, $term, $term, $term, $term);
         if (strlen($digits) >= 3) {
             $condition .= ' OR c.whatsapp LIKE ? OR c.phone LIKE ? OR c.cpf LIKE ?';
             array_push($params, "%{$digits}%", "%{$digits}%", "%{$digits}%");

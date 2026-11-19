@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Camera, FileText, Paperclip, Plus, Trash2, Upload, UserPlus, X } from 'lucide-react';
 import { api, apiUrl } from '../lib/api.js';
 import { useApi, useDebounce } from '../lib/hooks.js';
 import { date, fileSize, money, parseMoneyInput, phone } from '../lib/format.js';
-import { Button, Empty, Input, Loading, useConfirm, useToast } from './ui.jsx';
+import { Button, Empty, Field, Input, Loading, useConfirm, useToast } from './ui.jsx';
 
 /** Busca de cliente com autocompletar. value = {id, name} | null */
 export function ClientPicker({ value, onChange, placeholder = 'Buscar cliente por nome, CPF ou telefone…', onCreate, autoFocus }) {
@@ -157,20 +157,28 @@ export function ProductSearch({ onSelect, placeholder = 'Adicionar produto do es
   );
 }
 
-export const emptyItem = () => ({ key: Math.random().toString(36).slice(2), product_id: null, description: '', quantity: 1, unit_price: '', discount: '' });
+export const emptyItem = () => ({
+  key: Math.random().toString(36).slice(2), product_id: null, description: '', quantity: 1, unit_price: '', discount: '',
+  fiscal_ncm: '', fiscal_cfop: '', fiscal_origin: '', fiscal_tax_situation: '',
+});
 
 export function itemTotal(item) {
   return Math.max(0, parseMoneyInput(item.quantity || 0) * parseMoneyInput(item.unit_price) - parseMoneyInput(item.discount));
 }
 
 /** Editor de itens de venda/orçamento: aceita produtos do cadastro ou itens livres. */
-export function ItemsEditor({ items, onChange }) {
+export function ItemsEditor({ items, onChange, showFiscal = false }) {
   const update = (key, field, value) => onChange(items.map((item) => (item.key === key ? { ...item, [field]: value } : item)));
   const remove = (key) => onChange(items.filter((item) => item.key !== key));
   const addProduct = (product) =>
     onChange([
       ...items.filter((i) => i.description || i.product_id),
-      { ...emptyItem(), product_id: product.id, description: product.name, unit_price: String(product.price).replace('.', ','), stock: product.track_stock ? product.stock : null },
+      {
+        ...emptyItem(), product_id: product.id, description: product.name,
+        unit_price: String(product.price).replace('.', ','), stock: product.track_stock ? product.stock : null,
+        fiscal_ncm: product.fiscal_ncm ?? '', fiscal_cfop: product.fiscal_cfop ?? '',
+        fiscal_origin: product.fiscal_origin ?? '', fiscal_tax_situation: product.fiscal_tax_situation ?? '',
+      },
     ]);
   return (
     <div className="stack">
@@ -198,31 +206,54 @@ export function ItemsEditor({ items, onChange }) {
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.key}>
-                <td>
-                  <Input value={item.description} placeholder="Ex.: Lente multifocal, ajuste, armação do cliente…" onChange={(e) => update(item.key, 'description', e.target.value)} />
-                  {item.product_id ? (
-                    <span className="subtle">
-                      Produto do estoque{item.stock !== null && item.stock !== undefined ? ` · saldo ${item.stock}` : ''}
-                    </span>
-                  ) : (
-                    <span className="subtle">Item livre</span>
-                  )}
-                </td>
-                <td>
-                  <Input inputMode="decimal" value={item.quantity} onChange={(e) => update(item.key, 'quantity', e.target.value)} />
-                </td>
-                <td>
-                  <Input inputMode="decimal" placeholder="0,00" value={item.unit_price} onChange={(e) => update(item.key, 'unit_price', e.target.value)} />
-                </td>
-                <td>
-                  <Input inputMode="decimal" placeholder="0,00" value={item.discount} onChange={(e) => update(item.key, 'discount', e.target.value)} />
-                </td>
-                <td className="num">{money(itemTotal(item))}</td>
-                <td>
-                  <Button variant="ghost" size="sm" icon={Trash2} onClick={() => remove(item.key)} aria-label="Remover item" />
-                </td>
-              </tr>
+              <Fragment key={item.key}>
+                <tr>
+                  <td>
+                    <Input value={item.description} placeholder="Ex.: Lente multifocal, ajuste, armação do cliente…" onChange={(e) => update(item.key, 'description', e.target.value)} />
+                    {item.product_id ? (
+                      <span className="subtle">
+                        Produto do estoque{item.stock !== null && item.stock !== undefined ? ` · saldo ${item.stock}` : ''}
+                      </span>
+                    ) : (
+                      <span className="subtle">Item livre</span>
+                    )}
+                  </td>
+                  <td>
+                    <Input inputMode="decimal" value={item.quantity} onChange={(e) => update(item.key, 'quantity', e.target.value)} />
+                  </td>
+                  <td>
+                    <Input inputMode="decimal" placeholder="0,00" value={item.unit_price} onChange={(e) => update(item.key, 'unit_price', e.target.value)} />
+                  </td>
+                  <td>
+                    <Input inputMode="decimal" placeholder="0,00" value={item.discount} onChange={(e) => update(item.key, 'discount', e.target.value)} />
+                  </td>
+                  <td className="num">{money(itemTotal(item))}</td>
+                  <td>
+                    <Button variant="ghost" size="sm" icon={Trash2} onClick={() => remove(item.key)} aria-label="Remover item" />
+                  </td>
+                </tr>
+                {showFiscal && (
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="form-grid">
+                        <span className="subtle span-full">{item.product_id ? 'Dados herdados do produto; você pode ajustá-los nesta venda.' : 'Dados fiscais de teste do item livre.'} Sem validação tributária.</span>
+                        <Field label="NCM" className="c3">
+                          <Input value={item.fiscal_ncm ?? ''} inputMode="numeric" maxLength={8} onChange={(e) => update(item.key, 'fiscal_ncm', e.target.value)} />
+                        </Field>
+                        <Field label="CFOP" className="c3">
+                          <Input value={item.fiscal_cfop ?? ''} inputMode="numeric" maxLength={4} onChange={(e) => update(item.key, 'fiscal_cfop', e.target.value)} />
+                        </Field>
+                        <Field label="Origem (0 a 8)" className="c3">
+                          <Input value={item.fiscal_origin ?? ''} inputMode="numeric" maxLength={1} onChange={(e) => update(item.key, 'fiscal_origin', e.target.value)} />
+                        </Field>
+                        <Field label="Situação tributária" className="c3">
+                          <Input value={item.fiscal_tax_situation ?? ''} inputMode="numeric" maxLength={3} onChange={(e) => update(item.key, 'fiscal_tax_situation', e.target.value)} />
+                        </Field>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>

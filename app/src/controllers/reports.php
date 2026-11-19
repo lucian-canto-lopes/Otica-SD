@@ -487,9 +487,11 @@ function handleDashboard(string $method, array $input): never
     );
     sendJson([
         'team' => fetchAllRows(
-            'SELECT u.id, u.name, u.email, cu.role, cu.concurrent_screens,
+            'SELECT u.id, u.name, u.email, cu.role,
+                    CASE WHEN cu.role = "owner" THEN COALESCE(p.max_users, 2) + c.extra_user_slots + c.extra_screen_slots ELSE cu.concurrent_screens END AS concurrent_screens,
                     (SELECT COUNT(*) FROM user_sessions us WHERE us.company_id = cu.company_id AND us.user_id = cu.user_id AND us.expires_at > NOW()) AS active_screens
              FROM company_users cu JOIN users u ON u.id = cu.user_id
+             JOIN companies c ON c.id = cu.company_id LEFT JOIN plans p ON p.id = c.plan_id
              WHERE cu.company_id = ? AND cu.active = 1 AND u.is_superadmin = 0 ORDER BY (cu.role = "owner") DESC, u.name',
             [$companyId],
         ),

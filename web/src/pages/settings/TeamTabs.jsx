@@ -88,12 +88,12 @@ export function TeamTab() {
       {!canEdit && <ReadOnlyNotice />}
       {canEdit && seats && (
       <Card title="Vagas e telas contratadas">
-        <div className="subtle" style={{ paddingBottom: 12 }}>O plano inclui o proprietário e a quantidade de funcionários indicada. Vagas e telas extras têm cobrança mensal.</div>
+        <div className="subtle" style={{ paddingBottom: 12 }}>O proprietário pode usar as telas livres da ótica. Cada tela ocupada por ele reduz as disponíveis para funcionários. Telas adicionais de funcionários exigem contratação.</div>
           <div className="grid cols-2">
             <div className="stack sm">
               <strong>Usuários da ótica</strong>
               <span className="subtle">{number(seats.active_users)} de {number(seats.included_users + seats.extra_user_slots)} contas · {number(seats.included_users)} incluídas no plano</span>
-              <div className="row">
+              <div className="row wrap">
                 <Button size="sm" icon={Minus} disabled={!Number(seats.extra_user_slots)} onClick={() => changeCapacity('extra_user_slots', -1)} aria-label="Diminuir vagas extras" />
                 <Badge>{number(seats.extra_user_slots)} vaga(s) extra(s)</Badge>
                 <Button size="sm" icon={Plus} onClick={() => changeCapacity('extra_user_slots', 1)} aria-label="Aumentar vagas extras" />
@@ -102,8 +102,9 @@ export function TeamTab() {
             </div>
             <div className="stack sm">
               <strong>Telas simultâneas extras</strong>
+              <span className="subtle">{number(seats.active_screens)} de {number(Number(seats.included_users) + Number(seats.extra_user_slots) + Number(seats.extra_screen_slots))} telas da ótica em uso</span>
               <span className="subtle">{number(seats.assigned_extra_screens)} atribuída(s) de {number(seats.extra_screen_slots)} contratada(s)</span>
-              <div className="row">
+              <div className="row wrap">
                 <Button size="sm" icon={Minus} disabled={Number(seats.extra_screen_slots) <= Number(seats.assigned_extra_screens)} onClick={() => changeCapacity('extra_screen_slots', -1)} aria-label="Diminuir telas extras da ótica" />
                 <Badge>{number(seats.extra_screen_slots)} extra(s)</Badge>
                 <Button size="sm" icon={Plus} onClick={() => changeCapacity('extra_screen_slots', 1)} aria-label="Aumentar telas extras da ótica" />
@@ -137,6 +138,14 @@ export function TeamTab() {
               </div>
               <div className="subtle truncate">{m.email}</div>
               <div className="subtle">Telas ativas: {number(m.active_screens)} de {number(m.concurrent_screens || 1)}</div>
+              {canEdit && Number(m.active) && (
+                <div className="row wrap" onClick={(event) => event.stopPropagation()}>
+                  {m.role !== 'owner' && <Button size="sm" variant="ghost" icon={Minus} disabled={Number(m.concurrent_screens || 1) <= 1} onClick={() => changeMemberScreens(m, -1)} aria-label={`Diminuir telas de ${m.name}`} />}
+                  {m.role !== 'owner' && <Button size="sm" variant="ghost" icon={Plus} onClick={() => changeMemberScreens(m, 1)} aria-label={`Aumentar telas de ${m.name}`} />}
+                  {Number(m.active_screens) > 0 && m.id !== user?.id && <Button size="sm" variant="ghost" icon={RotateCcw} onClick={() => endMemberSessions(m)} aria-label={`Encerrar sessões de ${m.name}`} />}
+                  {m.id !== user?.id && <Button size="sm" variant="ghost" icon={UserMinus} onClick={() => revoke(m)} aria-label={`Remover acesso de ${m.name}`} />}
+                </div>
+              )}
             </div>
           )}
           columns={[
@@ -147,8 +156,8 @@ export function TeamTab() {
               <div className="row">
                 <Badge tone={Number(m.active_screens) >= Number(m.concurrent_screens || 1) ? 'warning' : 'brand'}>{number(m.active_screens)} / {number(m.concurrent_screens || 1)}</Badge>
                 {canEdit && Number(m.active) && <span onClick={(e) => e.stopPropagation()} className="row">
-                  <Button size="sm" variant="ghost" icon={Minus} disabled={Number(m.concurrent_screens || 1) <= 1} onClick={() => changeMemberScreens(m, -1)} aria-label={`Diminuir telas de ${m.name}`} />
-                  <Button size="sm" variant="ghost" icon={Plus} onClick={() => changeMemberScreens(m, 1)} aria-label={`Aumentar telas de ${m.name}`} />
+                  {m.role !== 'owner' && <Button size="sm" variant="ghost" icon={Minus} disabled={Number(m.concurrent_screens || 1) <= 1} onClick={() => changeMemberScreens(m, -1)} aria-label={`Diminuir telas de ${m.name}`} />}
+                  {m.role !== 'owner' && <Button size="sm" variant="ghost" icon={Plus} onClick={() => changeMemberScreens(m, 1)} aria-label={`Aumentar telas de ${m.name}`} />}
                   {Number(m.active_screens) > 0 && m.id !== user?.id && <Button size="sm" variant="ghost" icon={RotateCcw} onClick={() => endMemberSessions(m)} title={`Encerrar sessões de ${m.name}`} aria-label={`Encerrar sessões de ${m.name}`} />}
                 </span>}
               </div>

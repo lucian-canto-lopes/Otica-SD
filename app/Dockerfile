@@ -9,6 +9,7 @@ COPY config/ /var/www/config/
 COPY src/ /var/www/src/
 COPY lib/ /var/www/lib/
 COPY database/ /var/www/database/
+COPY schemas/ /var/www/schemas/
 COPY scripts/ /var/www/scripts/
 COPY migrate.php worker.php /var/www/
 RUN mkdir -p /var/www/storage && chown -R www-data:www-data /var/www/storage

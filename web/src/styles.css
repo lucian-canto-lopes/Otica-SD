@@ -230,6 +230,11 @@ table.table { width: 100%; border-collapse: collapse; }
 
 /* Tabs */
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.tabs-scroll-controls { display: flex; align-items: stretch; min-width: 0; border-bottom: 1px solid var(--border); }
+.tabs-scroll-controls .tabs { flex: 1; min-width: 0; border-bottom: 0; }
+.tabs-scroll-button { flex: 0 0 32px; display: grid; place-items: center; border: 0; background: var(--surface); color: var(--text); cursor: pointer; }
+.tabs-scroll-button:disabled { opacity: 0.25; cursor: default; }
+.tabs-scroll-button:not(:disabled):hover { background: var(--surface-2); }
 .tab { padding: 10px 14px; border: none; background: none; color: var(--text-2); font-weight: 550; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
 .tab.active { color: var(--brand); border-bottom-color: var(--brand); }
 .tab .count { margin-left: 6px; font-size: 11px; background: var(--surface-2); padding: 1px 6px; border-radius: 999px; }
@@ -310,6 +315,9 @@ table.table { width: 100%; border-collapse: collapse; }
 .login-page { min-height: 100%; display: grid; grid-template-columns: 1fr 1fr; }
 .login-art { background: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--brand) 70%, #fff) 0, var(--brand) 45%, #1b0f2e 100%); color: #fff; padding: 48px; display: flex; flex-direction: column; justify-content: space-between; }
 .login-form { display: grid; place-items: center; padding: 32px 20px; }
+.screen-limit-page { min-height: 100%; min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+.screen-limit-card { width: min(100%, 440px); min-width: 0; overflow-wrap: anywhere; }
+.screen-limit-card .btn { align-self: flex-start; }
 .company-card { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); cursor: pointer; width: 100%; text-align: left; }
 .company-card:hover { border-color: var(--brand); }
 .company-card img { width: 64px; height: 40px; object-fit: contain; }
@@ -351,6 +359,8 @@ table.table { width: 100%; border-collapse: collapse; }
   .chat:not(.has-active) .chat-pane { display: none; }
   .login-page { grid-template-columns: 1fr; }
   .login-art { display: none; }
+  .screen-limit-page { padding: 16px; align-items: center; }
+  .screen-limit-card .btn { width: 100%; justify-content: center; }
   .modal-root { padding: 0; align-items: end; }
   .modal, .modal.lg, .modal.xl { max-width: 100%; max-height: 94vh; border-radius: 16px 16px 0 0; }
   .modal.new-conversation { max-width: 100%; height: min(540px, 94dvh); }

@@ -12,6 +12,10 @@ x-api-env: &api-env
   EVOLUTION_URL: http://evolution:8080
   EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-troque-esta-chave-evolution}
   EVOLUTION_WEBHOOK_BASE: http://api
+  # Homologação NF-e: apenas leitura de pré-requisitos. Arquivos devem ser montados em /run/secrets.
+  NFE_HOMOLOGATION_COMPANY_ID: ${NFE_HOMOLOGATION_COMPANY_ID:-}
+  NFE_HOMOLOGATION_PFX_PATH: ${NFE_HOMOLOGATION_PFX_PATH:-}
+  NFE_HOMOLOGATION_PASSWORD_FILE: ${NFE_HOMOLOGATION_PASSWORD_FILE:-}
 
 services:
   frontend:

@@ -5,8 +5,9 @@ import { ORIGINS, UF } from '../../lib/constants.js';
 import { Button, Checkbox, Field, Input, Modal, Select, Textarea, useToast } from '../../components/ui.jsx';
 
 const EMPTY = {
-  kind: 'client', name: '', nickname: '', cpf: '', rg: '', birth_date: '', gender: '', whatsapp: '', phone: '', email: '',
+  kind: 'client', name: '', nickname: '', cpf: '', cnpj: '', rg: '', birth_date: '', gender: '', whatsapp: '', phone: '', email: '',
   instagram: '', zip: '', address: '', number: '', complement: '', neighborhood: '', city: '', state: '', occupation: '',
+  fiscal_city_code: '', fiscal_ie_indicator: '9', fiscal_ie: '',
   origin: '', notes: '', next_contact_date: '', message_consent: false, tag_ids: [],
 };
 
@@ -20,7 +21,7 @@ export default function ClientForm({ open, client, initialName = '', onClose, on
 
   useEffect(() => {
     if (!open) return;
-    setValues(client ? { ...EMPTY, ...Object.fromEntries(Object.entries(client).map(([k, v]) => [k, v ?? ''])), message_consent: Boolean(Number(client.message_consent)), tag_ids: (client.tags || []).map((t) => t.id) } : { ...EMPTY, name: initialName });
+    setValues(client ? { ...EMPTY, ...Object.fromEntries(Object.entries(client).map(([k, v]) => [k, v ?? ''])), fiscal_ie_indicator: String(client.fiscal_ie_indicator ?? '9'), message_consent: Boolean(Number(client.message_consent)), tag_ids: (client.tags || []).map((t) => t.id) } : { ...EMPTY, name: initialName });
     setMore(Boolean(client));
   }, [open, client, initialName]);
 
@@ -83,6 +84,9 @@ export default function ClientForm({ open, client, initialName = '', onClose, on
         <Field label="CPF" className="c4">
           <Input value={values.cpf} onChange={set('cpf')} inputMode="numeric" />
         </Field>
+        <Field label="CNPJ" className="c4" hint="Pode conter letras; informe sem máscara obrigatória">
+          <Input value={values.cnpj} onChange={set('cnpj')} />
+        </Field>
         <Field label="Nascimento" className="c4">
           <Input type="date" value={values.birth_date} onChange={set('birth_date')} />
         </Field>
@@ -139,6 +143,21 @@ export default function ClientForm({ open, client, initialName = '', onClose, on
             </Field>
             <Field label="UF" className="c2">
               <Select value={values.state} onChange={set('state')} placeholder="—" options={UF} />
+            </Field>
+            <div className="form-section span-full">Dados fiscais de teste</div>
+            <p className="muted span-full">Usados apenas na simulação. Não confirmam o enquadramento tributário do cliente.</p>
+            <Field label="Código IBGE do município" hint="7 dígitos" className="c4">
+              <Input value={values.fiscal_city_code} onChange={set('fiscal_city_code')} inputMode="numeric" maxLength={7} />
+            </Field>
+            <Field label="Indicador da inscrição estadual" className="c4">
+              <Select value={values.fiscal_ie_indicator} onChange={set('fiscal_ie_indicator')} options={[
+                { value: '9', label: '9 · Não contribuinte' },
+                { value: '1', label: '1 · Contribuinte' },
+                { value: '2', label: '2 · Isento' },
+              ]} />
+            </Field>
+            <Field label="Inscrição estadual" hint="Se o indicador for contribuinte" className="c4">
+              <Input value={values.fiscal_ie} onChange={set('fiscal_ie')} maxLength={30} />
             </Field>
             <div className="form-section span-full">Outros dados</div>
             <Field label="Apelido / como gosta de ser chamado" className="c4">

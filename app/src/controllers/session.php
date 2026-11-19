@@ -15,6 +15,13 @@ function handleLogout(string $method, array $input): never
     sendJson(['ok' => true]);
 }
 
+function handleReleaseScreen(string $method, array $input): never
+{
+    if ($method !== 'POST') sendError('Método não permitido.', 405);
+    releaseCurrentScreenSession();
+    sendJson(['ok' => true]);
+}
+
 function handleSelectCompany(string $method, array $input): never
 {
     if ($method !== 'POST') {
@@ -74,11 +81,11 @@ function handleGlobalSearch(string $method, array $input): never
     $results = [];
     foreach (
         fetchAllRows(
-            "SELECT id, name, whatsapp, phone, cpf FROM clients
+            "SELECT id, name, whatsapp, phone, cpf, cnpj FROM clients
              WHERE company_id = ? AND deleted_at IS NULL
-               AND (name LIKE ? OR nickname LIKE ? OR (? <> '' AND (whatsapp LIKE ? OR phone LIKE ? OR cpf LIKE ?)))
+               AND (name LIKE ? OR nickname LIKE ? OR cnpj LIKE ? OR (? <> '' AND (whatsapp LIKE ? OR phone LIKE ? OR cpf LIKE ?)))
              ORDER BY name LIMIT 8",
-            [$companyId, $like, $like, $digits, "%{$digits}%", "%{$digits}%", "%{$digits}%"],
+            [$companyId, $like, $like, $like, $digits, "%{$digits}%", "%{$digits}%", "%{$digits}%"],
         )
         as $row
     ) {

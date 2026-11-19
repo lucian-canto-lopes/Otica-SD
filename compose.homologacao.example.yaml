@@ -1,0 +1,7 @@
+# Exemplo opcional. Copie para compose.homologacao.yaml somente quando tiver
+# certificado A1 e senha; ambos os arquivos ficam em secrets/ (ignorado pelo Git).
+services:
+  api:
+    volumes:
+      - ./secrets/nfe-a1.pfx:/run/secrets/nfe-a1.pfx:ro
+      - ./secrets/nfe-a1-password:/run/secrets/nfe-a1-password:ro

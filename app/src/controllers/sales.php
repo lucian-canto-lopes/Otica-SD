@@ -17,7 +17,7 @@ const PAYMENT_METHODS = [
  * Valida os itens de venda/orçamento. Itens podem apontar para um produto ou ser livres
  * (somente descrição), pois a venda não é fiscal.
  */
-function parseDocumentItems($rawItems, int $companyId): array
+function parseDocumentItems($rawItems, int $companyId, bool $forSale = false): array
 {
     if (!is_array($rawItems) || count($rawItems) < 1 || count($rawItems) > 100) {
         sendError('Adicione entre 1 e 100 itens.');
@@ -47,7 +47,7 @@ function parseDocumentItems($rawItems, int $companyId): array
             sendError('O desconto do item ' . ($position + 1) . ' supera o valor do item.');
         }
         $subtotal += $total;
-        $items[] = [
+        $values = [
             'product_id' => $product ? (int) $product['id'] : null,
             'description' => mb_substr($description, 0, 255),
             'quantity' => $quantity,
@@ -56,6 +56,20 @@ function parseDocumentItems($rawItems, int $companyId): array
             'total' => $total,
             'position' => $position,
         ];
+        if ($forSale) {
+            $origin = optionalFiscalCode($item, 'fiscal_origin', 1, 1, 'Origem fiscal do item ' . ($position + 1));
+            if ($origin !== '' && (int) $origin > 8) sendError('Origem fiscal do item ' . ($position + 1) . ' deve estar entre 0 e 8.');
+            $provided = [
+                'fiscal_ncm' => optionalFiscalCode($item, 'fiscal_ncm', 8, 8, 'NCM do item ' . ($position + 1)),
+                'fiscal_cfop' => optionalFiscalCode($item, 'fiscal_cfop', 4, 4, 'CFOP do item ' . ($position + 1)),
+                'fiscal_origin' => $origin,
+                'fiscal_tax_situation' => optionalFiscalCode($item, 'fiscal_tax_situation', 2, 3, 'Situação tributária do item ' . ($position + 1)),
+            ];
+            foreach ($provided as $field => $value) {
+                $values[$field] = $value !== '' ? $value : (string) ($product[$field] ?? '');
+            }
+        }
+        $items[] = $values;
     }
     return [$items, round($subtotal, 2)];
 }
@@ -141,14 +155,16 @@ function handleSales(string $method, array $input): never
 
     if ($method === 'PATCH' && ($input['action'] ?? '') === 'cancel') {
         requirePermission('manage');
-        $sale = requireCompanyRecord('sales', requireRouteId(), $companyId, 'Venda');
-        if ($sale['status'] === 'cancelled') {
-            sendError('Esta venda já está cancelada.');
-        }
+        $saleId = requireRouteId();
         $reason = requiredText($input, 'reason', 255, 'motivo do cancelamento');
-        inTransaction(static function () use ($sale, $companyId, $reason): void {
+        $sale = inTransaction(static function () use ($saleId, $companyId, $reason): array {
+            $sale = fetchOne('SELECT * FROM sales WHERE id = ? AND company_id = ? FOR UPDATE', [$saleId, $companyId]);
+            if (!$sale) sendError('Venda não encontrada.', 404);
+            if ($sale['status'] === 'cancelled') sendError('Esta venda já está cancelada.');
+            requireNoActiveFiscalSimulation($companyId, $saleId);
             restockSale($companyId, $sale, 'Cancelamento da venda nº ' . $sale['number']);
             executeQuery("UPDATE sales SET status = 'cancelled', cancel_reason = ? WHERE id = ? AND company_id = ?", [$reason, $sale['id'], $companyId]);
+            return $sale;
         });
         auditLog('cancel', 'sale', (int) $sale['id'], 'Venda nº ' . $sale['number'] . ' cancelada: ' . $reason);
         emitEvent($companyId, 'sale.cancelled', ['id' => (int) $sale['id'], 'number' => (int) $sale['number'], 'reason' => $reason]);
@@ -173,16 +189,18 @@ function handleSales(string $method, array $input): never
     $data = saleInput($input, $companyId);
 
     if ($method === 'PATCH') {
-        $before = requireCompanyRecord('sales', requireRouteId(), $companyId, 'Venda');
-        if ($before['status'] === 'cancelled') {
-            sendError('Vendas canceladas não podem ser alteradas.');
-        }
-        inTransaction(static function () use ($before, $companyId, $data): void {
+        $saleId = requireRouteId();
+        $before = inTransaction(static function () use ($saleId, $companyId, $data): array {
+            $before = fetchOne('SELECT * FROM sales WHERE id = ? AND company_id = ? FOR UPDATE', [$saleId, $companyId]);
+            if (!$before) sendError('Venda não encontrada.', 404);
+            if ($before['status'] === 'cancelled') sendError('Vendas canceladas não podem ser alteradas.');
+            requireNoActiveFiscalSimulation($companyId, $saleId);
             restockSale($companyId, $before, 'Alteração da venda nº ' . $before['number']);
             updateRow('sales', (int) $before['id'], $companyId, $data['sale']);
             executeQuery('DELETE FROM sale_items WHERE sale_id = ? AND company_id = ?', [$before['id'], $companyId]);
             executeQuery('DELETE FROM sale_payments WHERE sale_id = ? AND company_id = ?', [$before['id'], $companyId]);
             writeSaleChildren((int) $before['id'], (int) $before['number'], $companyId, $data);
+            return $before;
         });
         auditLog('update', 'sale', (int) $before['id'], 'Venda nº ' . $before['number'] . ' alterada', changedFields($before, $data['sale']));
         sendJson(['ok' => true, 'id' => (int) $before['id']]);
@@ -226,7 +244,7 @@ function handleSales(string $method, array $input): never
 
 function saleInput(array $input, int $companyId): array
 {
-    [$items, $subtotal] = parseDocumentItems($input['items'] ?? null, $companyId);
+    [$items, $subtotal] = parseDocumentItems($input['items'] ?? null, $companyId, true);
     $discount = moneyValue($input, 'discount');
     if ($discount > $subtotal) {
         sendError('O desconto não pode superar o subtotal.');
@@ -294,7 +312,10 @@ function refreshSalePaid(int $saleId, int $companyId): void
 function saleDetail(int $saleId, int $companyId): array
 {
     $sale = fetchOne(
-        'SELECT s.*, c.name AS client_name, c.whatsapp AS client_whatsapp, c.phone AS client_phone, c.cpf AS client_cpf,
+        'SELECT s.*, c.name AS client_name, c.whatsapp AS client_whatsapp, c.phone AS client_phone,
+                c.cpf AS client_cpf, c.cnpj AS client_cnpj, c.zip AS client_zip,
+                c.fiscal_city_code AS client_fiscal_city_code, c.fiscal_ie_indicator AS client_fiscal_ie_indicator,
+                c.fiscal_ie AS client_fiscal_ie,
                 c.address AS client_address, c.number AS client_number, c.neighborhood AS client_neighborhood,
                 c.city AS client_city, c.state AS client_state, c.birth_date AS client_birth_date, c.email AS client_email,
                 u.name AS seller_name, q.number AS quote_number
@@ -307,8 +328,12 @@ function saleDetail(int $saleId, int $companyId): array
         sendError('Venda não encontrada.', 404);
     }
     $sale['items'] = fetchAllRows(
-        'SELECT si.*, p.sku, p.category FROM sale_items si LEFT JOIN products p ON p.id = si.product_id WHERE si.sale_id = ? ORDER BY si.position, si.id',
-        [$saleId],
+        'SELECT si.*, p.sku, p.category, p.unit AS product_unit, p.fiscal_ncm AS product_fiscal_ncm,
+                p.fiscal_cfop AS product_fiscal_cfop, p.fiscal_origin AS product_fiscal_origin,
+                p.fiscal_tax_situation AS product_fiscal_tax_situation
+         FROM sale_items si LEFT JOIN products p ON p.id = si.product_id
+         WHERE si.sale_id = ? AND si.company_id = ? ORDER BY si.position, si.id',
+        [$saleId, $companyId],
     );
     $sale['payments'] = fetchAllRows('SELECT * FROM sale_payments WHERE sale_id = ? ORDER BY installment, id', [$saleId]);
     $sale['prescription'] = $sale['prescription_id'] ? fetchOne('SELECT * FROM prescriptions WHERE id = ?', [$sale['prescription_id']]) : null;

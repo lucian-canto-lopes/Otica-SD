@@ -13,6 +13,7 @@ import {
 const EMPTY = {
   name: '', sku: '', barcode: '', category: '', brand: '', model: '', color: '', size: '', unit: 'UN', cost: '', price: '',
   stock: '', min_stock: '', track_stock: true, supplier_id: '', description: '', active: true,
+  fiscal_ncm: '', fiscal_cfop: '', fiscal_origin: '', fiscal_tax_situation: '',
 };
 
 export function ProductForm({ open, product, categories = [], onClose, onSaved }) {
@@ -97,6 +98,20 @@ export function ProductForm({ open, product, categories = [], onClose, onSaved }
         </div>
         <Field label="Observações">
           <Textarea value={values.description} onChange={set('description')} rows={2} />
+        </Field>
+        <div className="form-section span-full">Dados fiscais de teste</div>
+        <p className="muted span-full">Estes códigos podem ser herdados pelos itens da venda. Não representam validação tributária.</p>
+        <Field label="NCM" hint="8 dígitos" className="c3">
+          <Input value={values.fiscal_ncm} onChange={set('fiscal_ncm')} inputMode="numeric" maxLength={8} />
+        </Field>
+        <Field label="CFOP" hint="4 dígitos" className="c3">
+          <Input value={values.fiscal_cfop} onChange={set('fiscal_cfop')} inputMode="numeric" maxLength={4} />
+        </Field>
+        <Field label="Origem" hint="Código de 0 a 8" className="c3">
+          <Input value={values.fiscal_origin} onChange={set('fiscal_origin')} inputMode="numeric" maxLength={1} />
+        </Field>
+        <Field label="Situação tributária" hint="Código de 2 ou 3 dígitos" className="c3">
+          <Input value={values.fiscal_tax_situation} onChange={set('fiscal_tax_situation')} inputMode="numeric" maxLength={3} />
         </Field>
       </form>
     </Modal>

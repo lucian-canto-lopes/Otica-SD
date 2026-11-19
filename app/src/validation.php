@@ -167,6 +167,27 @@ function onlyDigits(?string $value): string
     return preg_replace('/\D+/', '', (string) $value);
 }
 
+/** CNPJ pode conter letras; remove apenas pontuação e espaços de apresentação. */
+function normalizeFiscalCnpj(?string $value): string
+{
+    $upper = mb_strtoupper(trim((string) $value), 'UTF-8');
+    return preg_replace('/[.\/\-\s]+/u', '', $upper) ?? '';
+}
+
+/** Confere somente a forma do código; não decide se sua classificação tributária está correta. */
+function optionalFiscalCode(array $input, string $key, int $minLength, int $maxLength, string $label): string
+{
+    if (is_array($input[$key] ?? null)) {
+        sendError("Informe {$label} como texto.");
+    }
+    $value = trim((string) ($input[$key] ?? ''));
+    if ($value !== '' && (!ctype_digit($value) || strlen($value) < $minLength || strlen($value) > $maxLength)) {
+        $length = $minLength === $maxLength ? "{$minLength}" : "{$minLength} a {$maxLength}";
+        sendError("{$label} deve conter {$length} dígito(s).");
+    }
+    return $value;
+}
+
 /** Normaliza telefones brasileiros para o formato internacional usado pelo WhatsApp (55 + DDD + número). */
 function normalizePhone(?string $value, string $defaultDdd = ''): string
 {

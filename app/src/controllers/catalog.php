@@ -116,7 +116,8 @@ function handleProducts(string $method, array $input): never
         }
         $result = paginate(
             'SELECT p.id, p.sku, p.barcode, p.name, p.category, p.brand, p.model, p.color, p.cost, p.price, p.stock, p.min_stock,
-                    p.track_stock, p.active, p.supplier_id, s.name AS supplier_name',
+                    p.track_stock, p.active, p.supplier_id, p.fiscal_ncm, p.fiscal_cfop, p.fiscal_origin,
+                    p.fiscal_tax_situation, s.name AS supplier_name',
             "FROM products p LEFT JOIN partners s ON s.id = p.supplier_id {$where}",
             $params,
             sortClause(['name' => 'p.name', 'stock' => 'p.stock', 'price' => 'p.price', 'category' => 'p.category'], 'p.name ASC'),
@@ -165,6 +166,10 @@ function handleProducts(string $method, array $input): never
 
 function productValues(array $input, int $companyId): array
 {
+    $origin = optionalFiscalCode($input, 'fiscal_origin', 1, 1, 'Origem fiscal do produto');
+    if ($origin !== '' && (int) $origin > 8) {
+        sendError('Origem fiscal do produto deve estar entre 0 e 8.');
+    }
     return [
         'sku' => optionalText($input, 'sku', 60),
         'barcode' => optionalText($input, 'barcode', 60),
@@ -175,6 +180,10 @@ function productValues(array $input, int $companyId): array
         'color' => optionalText($input, 'color', 60),
         'size' => optionalText($input, 'size', 30),
         'unit' => optionalText($input, 'unit', 10) ?: 'UN',
+        'fiscal_ncm' => optionalFiscalCode($input, 'fiscal_ncm', 8, 8, 'NCM do produto'),
+        'fiscal_cfop' => optionalFiscalCode($input, 'fiscal_cfop', 4, 4, 'CFOP do produto'),
+        'fiscal_origin' => $origin,
+        'fiscal_tax_situation' => optionalFiscalCode($input, 'fiscal_tax_situation', 2, 3, 'Situação tributária do produto'),
         'cost' => moneyValue($input, 'cost'),
         'price' => moneyValue($input, 'price'),
         'stock' => (int) ($input['stock'] ?? 0),

@@ -12,12 +12,13 @@ Sistema multiótica: cada ótica tem seu ambiente isolado (clientes, vendas, est
 
 **Em cada ótica:**
 
-- **Equipe e sessões:** planos incluem proprietário + 1, 3 ou 5 funcionários; vagas adicionais têm preço mensal configurável. Cada pessoa tem limite de telas simultâneas, e telas extras precisam estar contratadas no pacote compartilhado da ótica. O painel inicial mostra a equipe e a aba **Configurações › Equipe** permite ajustar vagas, telas e encerrar sessões de funcionários. Sessões inativas expiram após 10 minutos; o logout as encerra imediatamente. A cobrança é estimada no protótipo e ainda não é debitada automaticamente.
+- **Equipe e sessões:** planos incluem proprietário + 1, 3 ou 5 funcionários; vagas adicionais têm preço mensal configurável. Cada aba do sistema conta como uma tela, inclusive abas do mesmo navegador. O proprietário pode usar telas livres incluídas no plano, reduzindo as disponíveis para funcionários. Telas adicionais de um funcionário precisam estar contratadas no pacote compartilhado da ótica e atribuídas a ele. O painel inicial mostra a equipe e a aba **Configurações › Equipe** permite ajustar vagas, telas e encerrar sessões de funcionários. Fechar a aba libera a tela; se o navegador não comunicar o fechamento, a vaga expira após 10 minutos. O logout encerra as sessões imediatamente. A cobrança é estimada no protótipo e ainda não é debitada automaticamente.
 
 - **Clientes** com etiquetas múltiplas, receitas (OD/OE), autorização de mensagens (LGPD), ficha com indicadores e **linha do tempo** unificada (vendas, orçamentos, OS, atendimentos, mensagens, campanhas, não compras, anexos). Painel da carteira (recência, faixa etária, cidades, origem, aniversariantes, receitas vencendo, melhores clientes).
 - **Produtos e estoque** com histórico de movimentações, entrada de mercadoria, inventário e alerta de mínimo. **Fornecedores e laboratórios.**
 - **Orçamentos** → conversão em venda com um clique ou registro de perda com motivo.
 - **Vendas** não fiscais: itens do estoque **ou itens livres**, desconto, entrada + parcelas, baixa de parcelas, cancelamento com estorno de estoque, **pedido em PDF A5**.
+- **Simulação fiscal:** a partir de uma venda, gera um documento demonstrativo NF-e modelo 55 com XML e PDF de teste, histórico e opção de cancelar a simulação.
 - **Ordens de serviço** vinculadas à venda ou avulsas, quadro kanban por etapa (arrastar e soltar), histórico, **OS em PDF A5 com canhoto** para o cliente.
 - **Numeração configurável** do próximo pedido, OS e orçamento (continuidade com o sistema anterior).
 - **Anexos** (fotos e documentos) em cliente, venda, OS e orçamento — no celular, o botão *Tirar foto* abre a câmera.
@@ -62,6 +63,22 @@ docker compose up --build -d
 ```
 
 Acesse http://localhost:8080. Os serviços são `frontend` (Nginx), `api` (PHP/Apache, aplica as migrações ao iniciar), `worker` (campanhas, automações, webhooks) e `db` (MySQL 8.4). Variáveis úteis: `PUBLIC_URL` (endereço público da API para os webhooks), `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `DB_PASSWORD`.
+
+## Simulação fiscal de teste
+
+1. Entre em uma ótica e abra uma venda não cancelada em **Vendas**. O botão **Simular NF-e 55** fica no detalhe da venda e exige permissão financeira (proprietário ou gerente).
+2. Complete os dados de teste indicados na conferência da venda: CNPJ (incluindo o formato alfanumérico com dois dígitos verificadores), IE, CRT, código IBGE e endereço em **Configurações › Ótica**; CPF ou CNPJ, indicador de IE e endereço no **cliente**; NCM, CFOP, origem e situação tributária no **produto** ou diretamente no item livre da **venda**. Vendas antigas e dados de demonstração podem precisar ser completados.
+3. Esta prévia cobre **somente um cenário fechado**: CRT 1 (Simples Nacional), venda interna para destinatário não contribuinte, CFOP 5102 e CSOSN 102 em todos os itens. ICMS, PIS e COFINS são representados por grupos de teste sem cálculo tributário; a forma de pagamento do XML é fictícia. A conferência não verifica se o enquadramento é adequado à venda real.
+4. Consulte o resultado em **Vendas › Notas fiscais (teste)**. O histórico mostra série, número de teste, venda, cliente, valor e situação. Baixe a prévia XML sem assinatura ou o PDF demonstrativo na venda ou no histórico.
+5. Uma simulação pode ser cancelada no histórico. Enquanto ela estiver ativa, a venda não pode ser editada ou cancelada. O registro e os arquivos continuam disponíveis após o cancelamento da simulação, identificados como teste. Depois disso, a venda pode ser editada e simulada novamente, gerando outro número de teste; o detalhe da venda mostra o documento mais recente e o histórico mostra os anteriores. Uma venda cancelada não aceita nova simulação.
+
+Este modo gera apenas **simulações locais de NF-e modelo 55**: não assina digitalmente, não transmite à SEFAZ, não consulta autorização e **não emite nota fiscal válida**. As novas prévias usam a estrutura NF-e 4.00 e são conferidas com o pacote oficial [PL_010h v1.03](https://www.nfe.fazenda.gov.br/portal/exibirArquivo.aspx?conteudo=YhWikFoTxUo%3D), publicado em 13/11/2026 (SHA-256 do ZIP: `bcbf6b277f79a6983d69016dfe0430f09b8a191997a4706a24938acddc18dc81`). Como o XSD exige `Signature`, a conferência insere uma assinatura **fictícia somente numa cópia em memória** para verificar a estrutura dos demais elementos. O XML baixado continua sem assinatura e, isoladamente, **não passa no XSD completo**. A validação estrutural não confirma regras de negócio da SEFAZ, códigos, tributos ou autorização. Registros antigos continuam com o formato XML demonstrativo próprio. O PDF traz aviso de ausência de valor fiscal. A numeração de teste é automática e separada por ótica, modelo e série.
+
+A API expõe `GET /api/index.php?action=fiscal_check&sale_id=ID` para consultar pendências, inclusive os erros do XSD. `POST fiscal` rejeita a simulação quando elas não foram resolvidas. Os dados da ótica, cliente e itens ficam congelados no documento de teste depois da criação.
+
+### Preparação para homologação real
+
+O detalhe da venda mostra separadamente os pré-requisitos para uma futura validação na SEFAZ. A rota `GET /api/index.php?action=fiscal_homologation&sale_id=ID` é **somente leitura** e não assina nem transmite documentos. Ela verifica a configuração privada de um certificado A1, o vínculo com a ótica e os dados básicos, e aponta o que falta implementar. Consulte [docs/homologacao.md](docs/homologacao.md) para configurar um certificado quando houver um emitente habilitado e para ver as etapas que ainda bloqueiam o envio real.
 
 ## Desenvolvimento da interface
 
@@ -120,5 +137,7 @@ Senhas com `password_hash`, consultas parametrizadas, sessão HttpOnly/SameSite,
 ## Testes
 
 `bash tests/smoke.sh` valida o fluxo principal contra a ótica de demonstração (cliente, venda com item livre e parcelas, OS, PDF, campanha sem duplicidade, cancelamento com estorno).
+
+`python3 tests/fiscal_http.py` valida o fluxo fiscal de teste por HTTP contra os contêineres locais. Ele cria uma ótica temporária, verifica pendências cadastrais e do XSD, descontos, prévia XML sem assinatura, PDF, cancelamento e nova simulação, e remove os dados ao terminar.
 
 Consulte o [guia da estrutura](docs/estrutura.md) e o [histórico de versões](CHANGELOG.md).

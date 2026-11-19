@@ -7,6 +7,8 @@
 # Arquivos enviados pelos usuários e configuração local da API
 app/storage/
 app/config/local.php
+secrets/
+compose.homologacao.yaml
 
 # Dependências instaladas localmente
 node_modules/

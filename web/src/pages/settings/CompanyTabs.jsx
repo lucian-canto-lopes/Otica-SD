@@ -10,6 +10,7 @@ import { ReadOnlyNotice } from './common.jsx';
 
 const COMPANY_KEYS = [
   'name', 'trade_name', 'document', 'phone', 'whatsapp', 'email', 'instagram', 'zip', 'address', 'number', 'neighborhood', 'city', 'state',
+  'fiscal_ie', 'fiscal_city_code', 'fiscal_crt',
   'primary_color', 'next_sale_number', 'next_order_number', 'next_quote_number',
 ];
 
@@ -186,6 +187,25 @@ export function CompanyTab() {
           </Card>
         </div>
       </div>
+      <Card title="Dados fiscais de teste">
+        <div className="form-grid">
+          <p className="muted span-full">Usados somente na simulação NF-e 55. O sistema confere presença e formato, sem validar a tributação.</p>
+          <Field label="Inscrição estadual" className="c4">
+            <Input maxLength={30} placeholder="Número ou ISENTO" {...bind('fiscal_ie')} />
+          </Field>
+          <Field label="Código IBGE do município" hint="7 dígitos" className="c4">
+            <Input inputMode="numeric" maxLength={7} placeholder="Ex.: 1506807" {...bind('fiscal_city_code')} />
+          </Field>
+          <Field label="Regime tributário (CRT)" className="c4">
+            <Select placeholder="Selecione" options={[
+              { value: '1', label: '1 · Simples Nacional' },
+              { value: '2', label: '2 · Simples Nacional (excesso)' },
+              { value: '3', label: '3 · Regime normal' },
+              { value: '4', label: '4 · MEI' },
+            ]} {...bind('fiscal_crt')} disabled={!canEdit} />
+          </Field>
+        </div>
+      </Card>
       <Card title="Preferências">
         <div className="form-grid">
           <Field label="DDD padrão" hint="Completa telefones sem DDD (ex.: 93)" className="c3">

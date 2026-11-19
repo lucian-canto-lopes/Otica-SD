@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Download, Edit3, Glasses, Printer, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Download, Edit3, FileText, Glasses, Printer, XCircle } from 'lucide-react';
 import { api, apiUrl, pdfUrl } from '../../lib/api.js';
 import { invalidate, useApi } from '../../lib/hooks.js';
 import { useSession } from '../../lib/session.jsx';
@@ -18,13 +18,25 @@ export default function SaleDetail() {
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState('');
   const [fiscalBusy, setFiscalBusy] = useState(false);
-  const { data: fiscalList, reload: reloadFiscal } = useApi('fiscal');
-  const fiscalDoc = fiscalList?.data?.find((document) => Number(document.sale_id) === Number(id));
+  const { data: fiscalData, error: fiscalError, loading: fiscalLoading, reload: reloadFiscal } = useApi('fiscal', { sale_id: id }, { keepPrevious: false });
+  const { data: homologation, error: homologationError, loading: homologationLoading, reload: reloadHomologation } = useApi(
+    can('manage') ? 'fiscal_homologation' : null,
+    { sale_id: id },
+    { enabled: can('manage'), keepPrevious: false },
+  );
+  const fiscalDoc = Number(fiscalData?.sale_id) === Number(id) ? fiscalData : null;
+  const shouldCheckFiscal = Boolean(sale) && sale.status !== 'cancelled' && fiscalDoc?.status !== 'simulated';
+  const { data: fiscalCheck, error: checkError, loading: checkLoading, reload: reloadFiscalCheck } = useApi(
+    shouldCheckFiscal ? 'fiscal_check' : null, { sale_id: id }, { enabled: shouldCheckFiscal, keepPrevious: false },
+  );
 
   if (loading && !sale) return <Loading />;
   if (!sale) return <Empty title="Venda não encontrada" />;
   const balance = Math.max(0, Number(sale.total) - Number(sale.paid));
   const cancelled = sale.status === 'cancelled';
+  const fiscalActive = fiscalDoc?.status === 'simulated';
+  const fiscalReady = !fiscalLoading && !fiscalError;
+  const checkReady = shouldCheckFiscal && !checkLoading && !checkError && fiscalCheck?.ready === true;
 
   const receive = async (payment) => {
     try {
@@ -50,8 +62,14 @@ export default function SaleDetail() {
   const simulateFiscal = async () => {
     setFiscalBusy(true);
     try {
+      const check = await api.get('fiscal_check', { sale_id: id });
+      if (!check.ready) {
+        reloadFiscalCheck();
+        toast.error('Corrija as pendências fiscais de teste antes de simular.');
+        return;
+      }
       await api.post('fiscal', { action: 'simulate', sale_id: Number(id), model: '55' });
-      toast.success('Documento de teste gerado, sem valor fiscal');
+      toast.success('Simulação NF-e 55 gerada, sem valor fiscal');
       reloadFiscal();
     } catch (error) { toast.error(error); }
     finally { setFiscalBusy(false); }
@@ -73,9 +91,8 @@ export default function SaleDetail() {
             <a className="btn icon" href={pdfUrl('sale', sale.id, true)} title="Baixar PDF" aria-label="Baixar PDF">
               <Download size={17} />
             </a>
-            {!cancelled && (fiscalDoc ? <><a className="btn" href={apiUrl('fiscal_xml', { id: fiscalDoc.id })}>XML de teste</a><a className="btn" href={apiUrl('fiscal_pdf', { id: fiscalDoc.id })}>PDF fiscal de teste</a></> : can('finance') && <Button loading={fiscalBusy} icon={Printer} onClick={simulateFiscal}>Simular nota</Button>)}
             {sale.client_whatsapp && <WhatsAppButton phone={sale.client_whatsapp} text={message} size="" label="Enviar resumo" />}
-            {can('sell') && !cancelled && (
+            {can('sell') && !cancelled && fiscalReady && !fiscalActive && (
               <Button icon={Edit3} onClick={() => navigate(`/vendas/${sale.id}/editar`)}>
                 Editar
               </Button>
@@ -88,6 +105,97 @@ export default function SaleDetail() {
         {balance > 0.009 && !cancelled && <Badge tone="warning">Saldo a receber {money(balance)}</Badge>}
         {cancelled && <span className="error-text">Motivo: {sale.cancel_reason}</span>}
       </div>
+      <Card title="Simulação fiscal · NF-e modelo 55">
+        <div className="stack">
+          <p className="muted">Prévia local em leiaute NF-e 4.00, sem assinatura, transmissão à SEFAZ ou valor fiscal.</p>
+          {!cancelled && !fiscalActive && fiscalReady && (
+            <div className="stack sm">
+              <strong>Conferência dos dados de teste</strong>
+              <p className="subtle">Cenário de teste: venda interna, CRT 1, CFOP 5102 e CSOSN 102. O XSD confere a estrutura com uma assinatura fictícia somente em memória; o XML baixado permanece sem assinatura. A tributação não é validada.</p>
+              {checkLoading ? <Loading inline /> : checkError ? (
+                <div className="row wrap" role="alert">
+                  <span className="error-text">Não foi possível conferir os dados: {checkError.message}</span>
+                  <Button size="sm" onClick={reloadFiscalCheck}>Tentar novamente</Button>
+                </div>
+              ) : checkReady ? (
+                <Badge tone="success">Estrutura conferida no XSD {fiscalCheck?.schema_version}</Badge>
+              ) : (
+                <>
+                  <Badge tone="warning">Pendências para simular</Badge>
+                  <ul className="stack sm">
+                    {(fiscalCheck?.issues || []).map((issue, index) => {
+                      const href = issue.href?.startsWith('#/') ? issue.href : issue.href?.startsWith('/') ? '#' + issue.href : null;
+                      return <li key={issue.field + '-' + index}>
+                        {issue.message}
+                        {href && <> · <a href={href}>Corrigir</a></>}
+                        {issue.section === 'schema' && <>
+                          {' · '}<a href="#/configuracoes/otica">Dados da ótica</a>
+                          {sale.client_id && <>{' · '}<a href={`#/clientes/${sale.client_id}`}>Dados do cliente</a></>}
+                        </>}
+                      </li>;
+                    })}
+                  </ul>
+                  {!fiscalCheck?.issues?.length && <p className="muted">Revise os dados fiscais da ótica, do cliente e dos itens da venda.</p>}
+                </>
+              )}
+            </div>
+          )}
+          {fiscalLoading ? <Loading inline /> : fiscalError ? (
+            <div className="row wrap" role="alert">
+              <span className="error-text">Não foi possível consultar a simulação fiscal: {fiscalError.message}</span>
+              <Button size="sm" onClick={reloadFiscal}>Tentar novamente</Button>
+            </div>
+          ) : fiscalDoc ? (
+            <>
+              <div className="row wrap">
+                <Badge tone={fiscalDoc.status === 'simulated' ? 'warning' : ''}>
+                  {fiscalDoc.status === 'cancelled' ? 'Simulação cancelada' : 'Simulada'}
+                </Badge>
+                <span className="muted">Série {fiscalDoc.series} · número de teste {fiscalDoc.number}</span>
+              </div>
+              {fiscalDoc.status === 'cancelled' && <p className="muted">Os arquivos desta simulação cancelada continuam disponíveis. Uma nova simulação terá outro número de teste.</p>}
+              {fiscalActive && <p className="muted">A edição e o cancelamento da venda ficam bloqueados enquanto esta simulação estiver ativa. Cancele a simulação no histórico fiscal para liberar a venda.</p>}
+              <div className="row wrap">
+                <a className="btn" href={apiUrl('fiscal_xml', { id: fiscalDoc.id })}><FileText size={17} /> Baixar prévia XML sem assinatura</a>
+                <a className="btn" href={apiUrl('fiscal_pdf', { id: fiscalDoc.id })}><Download size={17} /> Baixar PDF de teste</a>
+                {fiscalDoc.status === 'cancelled' && !cancelled && can('finance') && (
+                  <Button loading={fiscalBusy} disabled={!checkReady} icon={Printer} onClick={simulateFiscal}>Simular NF-e 55 novamente</Button>
+                )}
+                <a href="#/fiscal">Ver histórico fiscal</a>
+              </div>
+            </>
+          ) : cancelled ? (
+            <p className="muted">Não é possível simular uma nota para uma venda cancelada.</p>
+          ) : can('finance') ? (
+            <Button loading={fiscalBusy} disabled={!checkReady} icon={Printer} onClick={simulateFiscal}>Simular NF-e 55</Button>
+          ) : (
+            <p className="muted">A simulação pode ser criada por quem tem permissão financeira.</p>
+          )}
+        </div>
+      </Card>
+      {can('manage') && <Card title="Preparação para homologação na SEFAZ">
+        <div className="stack sm">
+          <p className="muted">Esta conferência prepara a integração real. O Ocular ainda não assina nem envia esta venda à SEFAZ.</p>
+          {homologationLoading ? <Loading inline /> : homologationError ? (
+            <div className="row wrap" role="alert">
+              <span className="error-text">Não foi possível consultar os pré-requisitos: {homologationError.message}</span>
+              <Button size="sm" onClick={reloadHomologation}>Tentar novamente</Button>
+            </div>
+          ) : homologation && <>
+            <div className="row wrap">
+              <Badge tone="warning">Aguardando pré-requisitos</Badge>
+              {homologation.authority && <span className="subtle">Autorizadora prevista: {homologation.authority}</span>}
+              <span className="subtle">Certificado A1: {homologation.certificate.configured ? 'carregado' : 'não configurado'}</span>
+            </div>
+            <ul className="stack sm">
+              {homologation.issues.map((issue) => <li key={issue.code}>
+                {issue.message}
+                {issue.href && <> · <a href={'#' + issue.href}>Ver dados</a></>}
+              </li>)}
+            </ul>
+          </>}
+        </div>
+      </Card>}
       <div className="grid cols-3">
         <div className="span-2 stack">
           <Card title="Itens" bodyClass={null}>
@@ -231,7 +339,7 @@ export default function SaleDetail() {
               <dd style={{ whiteSpace: 'pre-wrap' }}>{sale.notes || '—'}</dd>
             </dl>
           </Card>
-          {can('manage') && !cancelled && (
+          {can('manage') && !cancelled && fiscalReady && !fiscalActive && (
             <Button variant="ghost" className="danger" icon={XCircle} onClick={() => setCancelling(true)}>
               Cancelar venda
             </Button>

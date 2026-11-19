@@ -22,6 +22,9 @@ function handleCompanySettings(string $method, array $input): never
         'name' => requiredText($input, 'name', 150, 'razão social'),
         'trade_name' => optionalText($input, 'trade_name', 150),
         'document' => optionalText($input, 'document', 30),
+        'fiscal_ie' => optionalText($input, 'fiscal_ie', 30),
+        'fiscal_city_code' => optionalFiscalCode($input, 'fiscal_city_code', 7, 7, 'Código IBGE do município da ótica'),
+        'fiscal_crt' => optionalText($input, 'fiscal_crt', 1),
         'phone' => optionalText($input, 'phone', 30),
         'whatsapp' => optionalText($input, 'whatsapp', 30),
         'email' => optionalEmail($input),
@@ -37,6 +40,9 @@ function handleCompanySettings(string $method, array $input): never
         'next_order_number' => validatedInteger($input['next_order_number'] ?? $before['next_order_number']),
         'next_quote_number' => validatedInteger($input['next_quote_number'] ?? $before['next_quote_number']),
     ];
+    if ($values['fiscal_crt'] !== '' && !in_array($values['fiscal_crt'], ['1', '2', '3', '4'], true)) {
+        sendError('Informe um código CRT de 1 a 4.');
+    }
     $settings = decodeJsonColumn($before['settings'], []);
     if (is_array($input['settings'] ?? null)) {
         foreach (['default_ddd', 'sale_terms', 'order_terms', 'quote_validity_days', 'prescription_validity_months', 'renewal_months', 'pdf_footer'] as $key) {
@@ -98,9 +104,11 @@ function handleTeam(string $method, array $input): never
     if ($method === 'GET') {
         sendJson(
             fetchAllRows(
-                'SELECT u.id, u.name, u.email, u.phone, u.last_login_at, cu.role, cu.active, cu.concurrent_screens,
+                'SELECT u.id, u.name, u.email, u.phone, u.last_login_at, cu.role, cu.active,
+                        CASE WHEN cu.role = "owner" THEN COALESCE(p.max_users, 2) + c.extra_user_slots + c.extra_screen_slots ELSE cu.concurrent_screens END AS concurrent_screens,
                         (SELECT COUNT(*) FROM user_sessions us WHERE us.company_id = cu.company_id AND us.user_id = cu.user_id AND us.expires_at > NOW()) AS active_screens
                  FROM company_users cu JOIN users u ON u.id = cu.user_id
+                 JOIN companies c ON c.id = cu.company_id LEFT JOIN plans p ON p.id = c.plan_id
                  WHERE cu.company_id = ? AND u.is_superadmin = 0 ORDER BY cu.active DESC, u.name',
                 [$companyId],
             ),
@@ -112,7 +120,11 @@ function handleTeam(string $method, array $input): never
         if ($userId === Context::userId()) {
             sendError('Você não pode remover o próprio acesso.');
         }
-        executeQuery('UPDATE company_users SET active = 0 WHERE company_id = ? AND user_id = ?', [$companyId, $userId]);
+        inTransaction(static function () use ($companyId, $userId): void {
+            executeQuery('SELECT id FROM companies WHERE id = ? FOR UPDATE', [$companyId]);
+            executeQuery('UPDATE company_users SET active = 0, session_generation = session_generation + 1 WHERE company_id = ? AND user_id = ?', [$companyId, $userId]);
+            executeQuery('DELETE FROM user_sessions WHERE company_id = ? AND user_id = ?', [$companyId, $userId]);
+        });
         auditLog('revoke_access', 'user', $userId, 'Acesso à ótica removido');
         sendJson(['ok' => true]);
     }
@@ -123,20 +135,25 @@ function handleTeam(string $method, array $input): never
     if ($method === 'PATCH') {
         $userId = requireRouteId();
         if (!empty($input['end_sessions'])) {
-            executeQuery('DELETE FROM user_sessions WHERE company_id = ? AND user_id = ?', [$companyId, $userId]);
+            inTransaction(static function () use ($companyId, $userId): void {
+                executeQuery('SELECT id FROM companies WHERE id = ? FOR UPDATE', [$companyId]);
+                executeQuery('UPDATE company_users SET session_generation = session_generation + 1 WHERE company_id = ? AND user_id = ?', [$companyId, $userId]);
+                executeQuery('DELETE FROM user_sessions WHERE company_id = ? AND user_id = ?', [$companyId, $userId]);
+            });
             auditLog('end_sessions', 'user', $userId, 'Sessões encerradas pelo administrador da ótica');
             sendJson(['ok' => true]);
         }
         if (array_key_exists('concurrent_screens', $input)) {
             $screens = max(1, min(20, (int) $input['concurrent_screens']));
-            $membership = fetchOne('SELECT active, concurrent_screens FROM company_users WHERE company_id = ? AND user_id = ?', [$companyId, $userId]);
-            if (!$membership) sendError('Funcionário não encontrado nesta ótica.', 404);
-            $assigned = (int) fetchValue('SELECT COALESCE(SUM(GREATEST(concurrent_screens - 1, 0)), 0) FROM company_users WHERE company_id = ? AND active = 1', [$companyId]);
-            $pool = (int) fetchValue('SELECT extra_screen_slots FROM companies WHERE id = ?', [$companyId]);
-            $newAssigned = $assigned - max(0, (int) $membership['concurrent_screens'] - 1) + max(0, $screens - 1);
-            if ($newAssigned > $pool) sendError('A ótica não possui telas extras suficientes. Aumente primeiro o limite compartilhado da ótica.', 409, ['code' => 'screen_pool_limit']);
             inTransaction(static function () use ($screens, $companyId, $userId): void {
-                fetchOne('SELECT id FROM company_users WHERE company_id = ? AND user_id = ? FOR UPDATE', [$companyId, $userId]);
+                $pool = (int) fetchValue('SELECT extra_screen_slots FROM companies WHERE id = ? FOR UPDATE', [$companyId]);
+                $membership = fetchOne('SELECT role, active, concurrent_screens FROM company_users WHERE company_id = ? AND user_id = ? FOR UPDATE', [$companyId, $userId]);
+                if (!$membership) sendError('Funcionário não encontrado nesta ótica.', 404);
+                if (!(int) $membership['active']) sendError('Reative o acesso antes de atribuir telas.', 409);
+                if ($membership['role'] === 'owner') sendError('O proprietário usa as telas livres da ótica automaticamente.', 409);
+                $assigned = (int) fetchValue('SELECT COALESCE(SUM(GREATEST(concurrent_screens - 1, 0)), 0) FROM company_users WHERE company_id = ? AND active = 1 AND role <> "owner"', [$companyId]);
+                $newAssigned = $assigned - max(0, (int) $membership['concurrent_screens'] - 1) + max(0, $screens - 1);
+                if ($newAssigned > $pool) sendError('A ótica não possui telas extras suficientes. Aumente primeiro o limite compartilhado da ótica.', 409, ['code' => 'screen_pool_limit']);
                 $active = (int) fetchValue('SELECT COUNT(*) FROM user_sessions WHERE company_id = ? AND user_id = ? AND expires_at > NOW()', [$companyId, $userId]);
                 if ($screens < $active) sendError("Este usuário possui {$active} sessão(ões) ativa(s); encerre alguma antes de reduzir o limite.", 409);
                 executeQuery('UPDATE company_users SET concurrent_screens = ? WHERE company_id = ? AND user_id = ?', [$screens, $companyId, $userId]);
@@ -144,27 +161,55 @@ function handleTeam(string $method, array $input): never
             auditLog('update_screens', 'user', $userId, "Limite de telas alterado para {$screens}");
             sendJson(['ok' => true]);
         }
-        executeQuery(
-            'UPDATE company_users SET role = ?, active = ? WHERE company_id = ? AND user_id = ?',
-            [$role, array_key_exists('active', $input) ? booleanValue($input, 'active') : 1, $companyId, $userId],
-        );
+        inTransaction(static function () use ($companyId, $userId, $role, $input): void {
+            $capacity = fetchOne(
+                'SELECT c.extra_user_slots, COALESCE(p.max_users, 2) AS included_users
+                 FROM companies c LEFT JOIN plans p ON p.id = c.plan_id WHERE c.id = ? FOR UPDATE',
+                [$companyId],
+            );
+            $membership = fetchOne('SELECT role, active, concurrent_screens FROM company_users WHERE company_id = ? AND user_id = ? FOR UPDATE', [$companyId, $userId]);
+            if (!$membership) sendError('Funcionário não encontrado nesta ótica.', 404);
+            $active = array_key_exists('active', $input) ? booleanValue($input, 'active') : (int) $membership['active'];
+            if ($active && !(int) $membership['active']) {
+                $used = (int) fetchValue('SELECT COUNT(*) FROM company_users WHERE company_id = ? AND active = 1', [$companyId]);
+                if ($used >= (int) $capacity['included_users'] + (int) $capacity['extra_user_slots']) {
+                    sendError('O limite de usuários desta ótica foi atingido. Aumente as vagas extras antes de reativar.', 409, ['code' => 'user_limit']);
+                }
+            }
+            $screens = (int) $membership['concurrent_screens'];
+            if ($membership['role'] !== $role && ($membership['role'] === 'owner' || $role === 'owner')) {
+                if ($role !== 'owner') {
+                    $open = (int) fetchValue('SELECT COUNT(*) FROM user_sessions WHERE company_id = ? AND user_id = ? AND expires_at > NOW()', [$companyId, $userId]);
+                    if ($open > 1) sendError('Encerre as telas extras antes de mudar o papel do proprietário.', 409);
+                }
+                $screens = 1;
+            }
+            executeQuery('UPDATE company_users SET role = ?, active = ?, concurrent_screens = ?, session_generation = session_generation + ? WHERE company_id = ? AND user_id = ?',
+                [$role, $active, $screens, $active ? 0 : 1, $companyId, $userId]);
+            if (!$active) executeQuery('DELETE FROM user_sessions WHERE company_id = ? AND user_id = ?', [$companyId, $userId]);
+        });
         auditLog('update_access', 'user', $userId, 'Papel alterado para ' . ROLE_LABELS[$role]);
         sendJson(['ok' => true]);
     }
     if ($method !== 'POST') {
         sendError('Método não permitido.', 405);
     }
-    $capacity = fetchOne(
-        'SELECT COALESCE(p.max_users, 2) AS included_users, c.extra_user_slots,
-                (SELECT COUNT(*) FROM company_users cu2 WHERE cu2.company_id = c.id AND cu2.active = 1) AS active_users
-         FROM companies c LEFT JOIN plans p ON p.id = c.plan_id WHERE c.id = ?',
-        [$companyId],
-    );
-    if ((int) $capacity['active_users'] >= (int) $capacity['included_users'] + (int) $capacity['extra_user_slots']) {
-        sendError('O limite de usuários desta ótica foi atingido. Aumente as vagas extras para adicionar outro funcionário.', 409, ['code' => 'user_limit']);
-    }
     $email = mb_strtolower(requiredText($input, 'email', 190, 'e-mail'));
     $userId = inTransaction(static function () use ($email, $input, $companyId, $role): int {
+        $capacity = fetchOne(
+            'SELECT COALESCE(p.max_users, 2) AS included_users, c.extra_user_slots
+             FROM companies c LEFT JOIN plans p ON p.id = c.plan_id WHERE c.id = ? FOR UPDATE',
+            [$companyId],
+        );
+        $alreadyActive = (int) fetchValue(
+            'SELECT COUNT(*) FROM company_users cu JOIN users u ON u.id = cu.user_id
+             WHERE cu.company_id = ? AND cu.active = 1 AND u.email = ?',
+            [$companyId, $email],
+        );
+        $used = (int) fetchValue('SELECT COUNT(*) FROM company_users WHERE company_id = ? AND active = 1', [$companyId]);
+        if (!$alreadyActive && $used >= (int) $capacity['included_users'] + (int) $capacity['extra_user_slots']) {
+            sendError('O limite de usuários desta ótica foi atingido. Aumente as vagas extras para adicionar outro funcionário.', 409, ['code' => 'user_limit']);
+        }
         $userId = findOrCreateUser($email, (string) ($input['name'] ?? ''), (string) ($input['password'] ?? ''));
         linkUserToCompany($userId, $companyId, $role);
         return $userId;
@@ -182,7 +227,8 @@ function handleTeamSeats(string $method, array $input): never
                     COALESCE(p.extra_user_price, 0) AS extra_user_price,
                     COALESCE(p.extra_screen_price, 0) AS extra_screen_price,
                     (SELECT COUNT(*) FROM company_users cu WHERE cu.company_id = c.id AND cu.active = 1) AS active_users,
-                    (SELECT COALESCE(SUM(GREATEST(cu.concurrent_screens - 1, 0)), 0) FROM company_users cu WHERE cu.company_id = c.id AND cu.active = 1) AS assigned_extra_screens
+                    (SELECT COALESCE(SUM(GREATEST(cu.concurrent_screens - 1, 0)), 0) FROM company_users cu WHERE cu.company_id = c.id AND cu.active = 1 AND cu.role <> "owner") AS assigned_extra_screens,
+                    (SELECT COUNT(*) FROM user_sessions us WHERE us.company_id = c.id AND us.expires_at > NOW()) AS active_screens
              FROM companies c LEFT JOIN plans p ON p.id = c.plan_id WHERE c.id = ?',
             [$companyId],
         );
@@ -195,14 +241,16 @@ function handleTeamSeats(string $method, array $input): never
     $monthly = inTransaction(static function () use ($companyId, $users, $screens): float {
         $current = fetchOne(
             'SELECT c.extra_user_slots, c.extra_screen_slots, COALESCE(p.max_users, 2) AS included_users,
-                    (SELECT COUNT(*) FROM company_users cu WHERE cu.company_id = c.id AND cu.active = 1) AS active_users,
-                    (SELECT COALESCE(SUM(GREATEST(cu.concurrent_screens - 1, 0)), 0) FROM company_users cu WHERE cu.company_id = c.id AND cu.active = 1) AS assigned_extra_screens,
                     p.extra_user_price, p.extra_screen_price
              FROM companies c LEFT JOIN plans p ON p.id = c.plan_id WHERE c.id = ? FOR UPDATE',
             [$companyId],
         );
-        if ($users + (int) $current['included_users'] < (int) $current['active_users']) sendError('Mantenha vagas suficientes para todos os funcionários ativos.', 409);
-        if ($screens < (int) $current['assigned_extra_screens']) sendError('Reduza as telas atribuídas aos funcionários antes de diminuir o limite da ótica.', 409);
+        $activeUsers = (int) fetchValue('SELECT COUNT(*) FROM company_users WHERE company_id = ? AND active = 1', [$companyId]);
+        $assignedScreens = (int) fetchValue('SELECT COALESCE(SUM(GREATEST(concurrent_screens - 1, 0)), 0) FROM company_users WHERE company_id = ? AND active = 1 AND role <> "owner"', [$companyId]);
+        $activeScreens = (int) fetchValue('SELECT COUNT(*) FROM user_sessions WHERE company_id = ? AND expires_at > NOW()', [$companyId]);
+        if ($users + (int) $current['included_users'] < $activeUsers) sendError('Mantenha vagas suficientes para todos os funcionários ativos.', 409);
+        if ($screens < $assignedScreens) sendError('Reduza as telas atribuídas aos funcionários antes de diminuir o limite da ótica.', 409);
+        if ($users + (int) $current['included_users'] + $screens < $activeScreens) sendError('Encerre telas em uso antes de diminuir a capacidade da ótica.', 409);
         executeQuery('UPDATE companies SET extra_user_slots = ?, extra_screen_slots = ? WHERE id = ?', [$users, $screens, $companyId]);
         return (float) ($current['extra_user_price'] ?? 0) * $users + (float) ($current['extra_screen_price'] ?? 0) * $screens;
     });

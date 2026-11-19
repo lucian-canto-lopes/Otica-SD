@@ -52,14 +52,26 @@ export default function SaleEditor() {
         if (id) {
           const sale = await api.get('sales', { id });
           if (sale.client_id) setClient({ id: sale.client_id, name: sale.client_name, whatsapp: sale.client_whatsapp });
-          setItems(sale.items.map((i) => ({ ...emptyItem(), product_id: i.product_id, description: i.description, quantity: String(Number(i.quantity)).replace('.', ','), unit_price: toInputMoney(i.unit_price), discount: Number(i.discount) ? toInputMoney(i.discount) : '' })));
+          setItems(sale.items.map((i) => ({
+            ...emptyItem(), product_id: i.product_id, description: i.description,
+            quantity: String(Number(i.quantity)).replace('.', ','), unit_price: toInputMoney(i.unit_price),
+            discount: Number(i.discount) ? toInputMoney(i.discount) : '',
+            fiscal_ncm: i.fiscal_ncm ?? '', fiscal_cfop: i.fiscal_cfop ?? '',
+            fiscal_origin: i.fiscal_origin ?? '', fiscal_tax_situation: i.fiscal_tax_situation ?? '',
+          })));
           setDiscount(Number(sale.discount) ? toInputMoney(sale.discount) : '');
           setPayments(sale.payments.map((p) => ({ ...p, key: p.id, amount: toInputMoney(p.amount), paid: Boolean(p.paid_at) })));
           setForm({ sale_date: sale.sale_date, delivery_date: sale.delivery_date || '', seller_id: sale.seller_id || '', notes: sale.notes || '', payment_terms: sale.payment_terms || '', prescription_id: sale.prescription_id || '', number: '', quote_id: sale.quote_id || '' });
         } else if (search.get('quote')) {
           const quote = await api.get('quotes', { id: search.get('quote') });
           if (quote.client_id) setClient({ id: quote.client_id, name: quote.client_name, whatsapp: quote.client_whatsapp });
-          setItems(quote.items.map((i) => ({ ...emptyItem(), product_id: i.product_id, description: i.description, quantity: String(Number(i.quantity)).replace('.', ','), unit_price: toInputMoney(i.unit_price), discount: Number(i.discount) ? toInputMoney(i.discount) : '' })));
+          setItems(quote.items.map((i) => ({
+            ...emptyItem(), product_id: i.product_id, description: i.description,
+            quantity: String(Number(i.quantity)).replace('.', ','), unit_price: toInputMoney(i.unit_price),
+            discount: Number(i.discount) ? toInputMoney(i.discount) : '',
+            fiscal_ncm: i.fiscal_ncm ?? '', fiscal_cfop: i.fiscal_cfop ?? '',
+            fiscal_origin: i.fiscal_origin ?? '', fiscal_tax_situation: i.fiscal_tax_situation ?? '',
+          })));
           setDiscount(Number(quote.discount) ? toInputMoney(quote.discount) : '');
           setForm((f) => ({ ...f, quote_id: quote.id, prescription_id: quote.prescription_id || '', notes: quote.notes || '' }));
         } else if (search.get('client')) {
@@ -113,7 +125,13 @@ export default function SaleEditor() {
       const payload = {
         ...form,
         client_id: client?.id || null,
-        items: validItems.map((i) => ({ product_id: i.product_id, description: i.description, quantity: parseMoneyInput(i.quantity), unit_price: parseMoneyInput(i.unit_price), discount: parseMoneyInput(i.discount) })),
+        items: validItems.map((i) => ({
+          product_id: i.product_id, description: i.description,
+          quantity: parseMoneyInput(i.quantity), unit_price: parseMoneyInput(i.unit_price),
+          discount: parseMoneyInput(i.discount),
+          fiscal_ncm: i.fiscal_ncm, fiscal_cfop: i.fiscal_cfop,
+          fiscal_origin: i.fiscal_origin, fiscal_tax_situation: i.fiscal_tax_situation,
+        })),
         discount: discountValue,
         payments: payments.map((p, index) => ({ method: p.method, amount: parseMoneyInput(p.amount), installment: index + 1, due_date: p.due_date || null, paid_at: p.paid ? p.paid_at || form.sale_date : null })),
         create_service_order: !id && createOrder,
@@ -164,7 +182,7 @@ export default function SaleEditor() {
             </div>
           </Card>
           <Card title="Itens">
-            <ItemsEditor items={items} onChange={setItems} />
+            <ItemsEditor items={items} onChange={setItems} showFiscal />
           </Card>
           <Card title="Pagamento">
             <div className="stack">

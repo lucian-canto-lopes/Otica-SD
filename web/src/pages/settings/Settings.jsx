@@ -29,7 +29,7 @@ export default function Settings() {
   return (
     <div className="stack">
       <PageHeader title="Configurações" subtitle={can('manage') ? 'Dados da ótica, equipe, canais de atendimento e integrações.' : 'Somente proprietários e gerentes podem alterar as configurações.'} />
-      <Tabs tabs={TABS} active={active.key} onChange={(key) => navigate(`/configuracoes/${key}`)} />
+      <Tabs tabs={TABS} active={active.key} onChange={(key) => navigate(`/configuracoes/${key}`)} scrollControls />
       <Component />
     </div>
   );

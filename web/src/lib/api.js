@@ -3,12 +3,36 @@ export const API_URL = import.meta.env.VITE_API_URL || 'api/index.php';
 
 let csrfToken = '';
 let onUnauthorized = () => {};
+let onSessionLimit = () => {};
+const screenKey = 'ocular-screen-id';
+let screenId = sessionStorage.getItem(screenKey);
+if (!/^[a-f0-9]{32}$/.test(screenId || '')) {
+  screenId = crypto.randomUUID().replaceAll('-', '');
+  sessionStorage.setItem(screenKey, screenId);
+}
+
+// Abas duplicadas podem receber uma cópia do sessionStorage. A nova aba troca o identificador.
+if (typeof BroadcastChannel !== 'undefined') {
+  const channel = new BroadcastChannel('ocular-screen-ids');
+  channel.onmessage = ({ data }) => {
+    if (data?.id !== screenId) return;
+    if (data.type === 'probe') channel.postMessage({ type: 'occupied', id: screenId });
+    if (data.type === 'occupied') {
+      screenId = crypto.randomUUID().replaceAll('-', '');
+      sessionStorage.setItem(screenKey, screenId);
+    }
+  };
+  channel.postMessage({ type: 'probe', id: screenId });
+}
 
 export function setCsrf(token) {
   csrfToken = token || '';
 }
 export function setUnauthorizedHandler(handler) {
   onUnauthorized = handler;
+}
+export function setSessionLimitHandler(handler) {
+  onSessionLimit = handler;
 }
 
 export class ApiError extends Error {
@@ -20,17 +44,17 @@ export class ApiError extends Error {
 }
 
 export function apiUrl(action, params = {}) {
-  const search = new URLSearchParams({ action });
+  const search = new URLSearchParams({ action, screen_id: screenId });
   for (const [key, value] of Object.entries(params)) {
     // "action" é a rota da API e nunca pode ser sobrescrita por um filtro.
-    if (key === 'action' || value === undefined || value === null || value === '') continue;
+    if (key === 'action' || key === 'screen_id' || value === undefined || value === null || value === '') continue;
     search.set(key, Array.isArray(value) ? value.join(',') : String(value));
   }
   return `${API_URL}?${search.toString()}`;
 }
 
 async function request(method, action, { params, body, form } = {}) {
-  const headers = { Accept: 'application/json' };
+  const headers = { Accept: 'application/json', 'X-Screen-Id': screenId };
   if (method !== 'GET') headers['X-CSRF-Token'] = csrfToken;
   let payload;
   if (form) {
@@ -49,6 +73,7 @@ async function request(method, action, { params, body, form } = {}) {
   }
   if (!response.ok) {
     if (response.status === 401 && action !== 'login') onUnauthorized();
+    if (response.status === 409 && data?.code === 'session_limit') onSessionLimit(data.error);
     throw new ApiError(data?.error || `Erro ${response.status}`, response.status, data);
   }
   return data;
@@ -62,11 +87,21 @@ export const api = {
   upload: (action, form, params) => request('POST', action, { form, params }),
 };
 
+export function releaseScreen() {
+  if (!csrfToken) return;
+  fetch(apiUrl('release_screen'), {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': csrfToken, 'X-Screen-Id': screenId },
+    credentials: 'same-origin',
+    keepalive: true,
+  }).catch(() => {});
+}
+
 /** Baixa um arquivo gerado pela API (ex.: CSV) mantendo a sessão. */
 export async function downloadPost(action, body, filename) {
   const response = await fetch(apiUrl(action), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, 'X-Screen-Id': screenId },
     body: JSON.stringify(body),
     credentials: 'same-origin',
   });

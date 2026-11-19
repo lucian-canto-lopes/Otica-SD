@@ -1,7 +1,7 @@
 import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useSession } from './lib/session.jsx';
-import { Loading } from './components/ui.jsx';
+import { Button, Loading } from './components/ui.jsx';
 import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import SelectCompany from './pages/SelectCompany.jsx';
@@ -46,8 +46,18 @@ const AdminInvoices = lazy(() => import('./pages/admin/AdminInvoices.jsx'));
 const AdminAudit = lazy(() => import('./pages/admin/AdminAudit.jsx'));
 
 export default function App() {
-  const { session, loading, company, isSuperadmin } = useSession();
+  const { session, loading, company, isSuperadmin, screenLimitError, refresh } = useSession();
   if (loading) return <Loading />;
+  if (screenLimitError) return (
+    <div className="screen-limit-page">
+      <div className="card card-body stack screen-limit-card" role="alert">
+        <h1>Limite de telas atingido</h1>
+        <p>{screenLimitError}</p>
+        <p className="muted">Feche uma das outras telas e tente novamente.</p>
+        <Button variant="primary" onClick={refresh}>Tentar novamente</Button>
+      </div>
+    </div>
+  );
   if (!session) return <Login />;
   if (!company && !isSuperadmin) return <SelectCompany />;
 

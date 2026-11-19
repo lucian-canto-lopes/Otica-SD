@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, apiUrl, setCsrf, setUnauthorizedHandler } from './api.js';
+import { api, apiUrl, releaseScreen, setCsrf, setSessionLimitHandler, setUnauthorizedHandler } from './api.js';
 
 const SessionContext = createContext(null);
 
@@ -20,17 +20,20 @@ export function applyBrand(color) {
 export function SessionProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [screenLimitError, setScreenLimitError] = useState('');
 
   const refresh = useCallback(async () => {
     try {
       const data = await api.get('me');
       setCsrf(data.csrf);
       setSession(data);
+      setScreenLimitError('');
       applyBrand(data.company?.primary_color);
       document.title = data.company ? `${data.company.trade_name || data.company.name} · Ocular` : 'Ocular';
       return data;
-    } catch {
+    } catch (error) {
       setSession(null);
+      setScreenLimitError(error?.data?.code === 'session_limit' ? error.message : '');
       applyBrand(null);
       return null;
     } finally {
@@ -40,6 +43,10 @@ export function SessionProvider({ children }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => setSession(null));
+    setSessionLimitHandler((message) => {
+      setSession(null);
+      setScreenLimitError(message);
+    });
     refresh();
   }, [refresh]);
 
@@ -48,7 +55,11 @@ export function SessionProvider({ children }) {
     const heartbeat = window.setInterval(() => {
       api.get('me').catch(() => {});
     }, 4 * 60 * 1000);
-    return () => window.clearInterval(heartbeat);
+    window.addEventListener('pagehide', releaseScreen);
+    return () => {
+      window.clearInterval(heartbeat);
+      window.removeEventListener('pagehide', releaseScreen);
+    };
   }, [session?.company?.id]);
 
   const value = useMemo(() => {
@@ -56,6 +67,7 @@ export function SessionProvider({ children }) {
     return {
       session,
       loading,
+      screenLimitError,
       user: session?.user,
       company: session?.company,
       companies: session?.companies || [],
@@ -72,6 +84,7 @@ export function SessionProvider({ children }) {
           await api.post('logout', {});
         } finally {
           setSession(null);
+          setScreenLimitError('');
           applyBrand(null);
           window.location.hash = '#/';
         }
@@ -85,7 +98,7 @@ export function SessionProvider({ children }) {
       },
       logoUrl: (company) => (company?.logo_path ? apiUrl('logo', { company: company.id, v: company.logo_path?.length }) : null),
     };
-  }, [session, loading, refresh]);
+  }, [session, loading, refresh, screenLimitError]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

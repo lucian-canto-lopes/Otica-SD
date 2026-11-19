@@ -136,7 +136,8 @@ function finishImport(int $companyId, string $entity): void
         executeQuery(
             "UPDATE sales s JOIN (SELECT sale_id, SUM(total) AS items_total FROM sale_items WHERE company_id = ? GROUP BY sale_id) i ON i.sale_id = s.id
              SET s.subtotal = i.items_total, s.total = GREATEST(i.items_total - s.discount, 0)
-             WHERE s.company_id = ? AND s.legacy_id IS NOT NULL AND s.total = 0",
+             WHERE s.company_id = ? AND s.legacy_id IS NOT NULL AND s.total = 0
+               AND NOT EXISTS (SELECT 1 FROM fiscal_documents f WHERE f.company_id = s.company_id AND f.sale_id = s.id AND f.status <> 'cancelled')",
             [$companyId, $companyId],
         );
         executeQuery(
@@ -374,9 +375,12 @@ function importSale(int $companyId, array $row, bool $updateExisting): string
         'payment_terms' => mb_substr(importValue($row, 'payment_terms'), 0, 255),
         'notes' => mb_substr(importValue($row, 'notes'), 0, 5000),
     ];
-    $existing = fetchValue('SELECT id FROM sales WHERE company_id = ? AND legacy_id = ?', [$companyId, $legacy]);
+    $existing = fetchValue('SELECT id FROM sales WHERE company_id = ? AND legacy_id = ? FOR UPDATE', [$companyId, $legacy]);
     if ($existing) {
         if ($updateExisting) {
+            if (hasActiveFiscalSimulation($companyId, (int) $existing)) {
+                importFail('Cancele a simulação fiscal ativa antes de atualizar esta venda.');
+            }
             updateRow('sales', (int) $existing, $companyId, $values);
         }
         return 'updated';
@@ -395,9 +399,12 @@ function importSale(int $companyId, array $row, bool $updateExisting): string
 function importSaleItem(int $companyId, array $row): string
 {
     $saleLegacy = importValue($row, 'sale_legacy_id');
-    $sale = $saleLegacy !== '' ? fetchOne('SELECT id FROM sales WHERE company_id = ? AND legacy_id = ?', [$companyId, $saleLegacy]) : null;
+    $sale = $saleLegacy !== '' ? fetchOne('SELECT id FROM sales WHERE company_id = ? AND legacy_id = ? FOR UPDATE', [$companyId, $saleLegacy]) : null;
     if (!$sale) {
         importFail('Venda não encontrada para o código ' . $saleLegacy . '. Importe as vendas antes dos itens.');
+    }
+    if (hasActiveFiscalSimulation($companyId, (int) $sale['id'])) {
+        importFail('Cancele a simulação fiscal ativa antes de adicionar itens à venda.');
     }
     $product = null;
     if (($productLegacy = importValue($row, 'product_legacy_id')) !== '') {

@@ -147,9 +147,6 @@ function loadContext(): void
     $companyId = (int) ($_SESSION['company_id'] ?? 0);
     if ($companyId) {
         selectCompany($companyId, false);
-        if (Context::$company) {
-            registerCurrentCompanySession();
-        }
     }
 }
 
@@ -201,42 +198,62 @@ function registerCurrentCompanySession(bool $strict = true): void
     }
     $companyId = Context::companyId();
     $userId = (int) Context::userId();
-    $hash = hash('sha256', session_id());
     $loginKey = hash('sha256', (string) ($_SESSION['login_key'] ?? session_id()));
+    $screenId = (string) ($_SERVER['HTTP_X_SCREEN_ID'] ?? $_GET['screen_id'] ?? '');
+    if (!preg_match('/^[a-f0-9]{32}$/', $screenId)) {
+        sendError('Atualize esta página para continuar.', 428, ['code' => 'screen_id_required']);
+    }
+    $hash = hash('sha256', $loginKey . ':' . $screenId);
     $now = date('Y-m-d H:i:s');
     $expires = date('Y-m-d H:i:s', time() + 10 * 60);
 
     $registered = inTransaction(static function () use ($companyId, $userId, $hash, $loginKey, $now, $expires): bool {
+        $capacity = fetchOne(
+            'SELECT COALESCE(p.max_users, 2) AS included_users, c.extra_user_slots, c.extra_screen_slots
+             FROM companies c LEFT JOIN plans p ON p.id = c.plan_id WHERE c.id = ? FOR UPDATE',
+            [$companyId],
+        );
         $membership = fetchOne(
-            'SELECT concurrent_screens FROM company_users WHERE company_id = ? AND user_id = ? AND active = 1 FOR UPDATE',
+            'SELECT role, concurrent_screens, session_generation FROM company_users WHERE company_id = ? AND user_id = ? AND active = 1 FOR UPDATE',
             [$companyId, $userId],
         );
         if (!$membership) {
             sendError('Seu acesso a esta ótica foi removido.', 403);
         }
+        $generation = (int) $membership['session_generation'];
+        if (!isset($_SESSION['company_session_generations'][$companyId])) {
+            $_SESSION['company_session_generations'][$companyId] = $generation;
+        }
+        if ((int) $_SESSION['company_session_generations'][$companyId] !== $generation) {
+            return false;
+        }
         executeQuery('DELETE FROM user_sessions WHERE expires_at <= NOW()', []);
-        $current = fetchOne('SELECT id FROM user_sessions WHERE session_hash = ? OR session_hash = ?', [$hash, $loginKey]);
+        $current = fetchOne('SELECT company_id, user_id FROM user_sessions WHERE session_hash = ?', [$hash]);
         $active = (int) fetchValue(
             'SELECT COUNT(*) FROM user_sessions WHERE company_id = ? AND user_id = ? AND expires_at > NOW() AND session_hash <> ?',
             [$companyId, $userId, $hash],
         );
-        if (!$current && $active >= max(1, (int) $membership['concurrent_screens'])) {
+        $companyLimit = (int) $capacity['included_users'] + (int) $capacity['extra_user_slots'] + (int) $capacity['extra_screen_slots'];
+        $userLimit = $membership['role'] === 'owner' ? $companyLimit : max(1, (int) $membership['concurrent_screens']);
+        $companyActive = (int) fetchValue(
+            'SELECT COUNT(*) FROM user_sessions WHERE company_id = ? AND expires_at > NOW() AND session_hash <> ?',
+            [$companyId, $hash],
+        );
+        if ((!$current || (int) $current['company_id'] !== $companyId) && ($active >= $userLimit || $companyActive >= $companyLimit)) {
             return false;
         }
         executeQuery(
-            'INSERT INTO user_sessions (session_hash, company_id, user_id, last_seen_at, expires_at)
-             VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE company_id = VALUES(company_id), user_id = VALUES(user_id), last_seen_at = VALUES(last_seen_at), expires_at = VALUES(expires_at)',
-            [$loginKey, $companyId, $userId, $now, $expires],
+            'INSERT INTO user_sessions (session_hash, login_hash, company_id, user_id, last_seen_at, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE login_hash = VALUES(login_hash), company_id = VALUES(company_id), user_id = VALUES(user_id), last_seen_at = VALUES(last_seen_at), expires_at = VALUES(expires_at)',
+            [$hash, $loginKey, $companyId, $userId, $now, $expires],
         );
         return true;
     });
-    if (!$registered && $strict) {
-        sendError('Este usuário já atingiu o limite de telas simultâneas. Encerre outra sessão ou solicite mais telas ao proprietário.', 409, ['code' => 'session_limit']);
-    }
     if (!$registered) {
-        unset($_SESSION['company_id']);
-        Context::$company = null;
-        Context::$role = '';
+        $generation = (int) fetchValue('SELECT session_generation FROM company_users WHERE company_id = ? AND user_id = ?', [$companyId, $userId]);
+        if ((int) ($_SESSION['company_session_generations'][$companyId] ?? $generation) !== $generation) {
+            sendError('Suas sessões foram encerradas pelo administrador. Entre novamente.', 401, ['code' => 'session_revoked']);
+        }
         sendError('Este usuário já atingiu o limite de telas simultâneas. Encerre outra sessão ou solicite mais telas ao proprietário.', 409, ['code' => 'session_limit']);
     }
 }
@@ -245,8 +262,18 @@ function releaseCurrentCompanySession(): void
 {
     if (session_id() !== '') {
         $key = hash('sha256', (string) ($_SESSION['login_key'] ?? session_id()));
-        executeQuery('DELETE FROM user_sessions WHERE session_hash IN (?, ?)', [hash('sha256', session_id()), $key]);
+        executeQuery('DELETE FROM user_sessions WHERE login_hash = ?', [$key]);
     }
+}
+
+function releaseCurrentScreenSession(): void
+{
+    $screenId = (string) ($_SERVER['HTTP_X_SCREEN_ID'] ?? $_GET['screen_id'] ?? '');
+    if (!preg_match('/^[a-f0-9]{32}$/', $screenId)) {
+        return;
+    }
+    $loginHash = hash('sha256', (string) ($_SESSION['login_key'] ?? session_id()));
+    executeQuery('DELETE FROM user_sessions WHERE session_hash = ?', [hash('sha256', $loginHash . ':' . $screenId)]);
 }
 
 function validateCsrfToken(string $method): void

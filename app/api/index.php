@@ -8,6 +8,7 @@ const ROUTES = [
     // Sessão
     'me' => ['handleMe', false],
     'logout' => ['handleLogout', false],
+    'release_screen' => ['handleReleaseScreen', false],
     'select_company' => ['handleSelectCompany', false],
     'profile' => ['handleProfile', false],
     // Plataforma (superadmin)
@@ -35,6 +36,8 @@ const ROUTES = [
     'quotes' => ['handleQuotes', true],
     'sales' => ['handleSales', true],
     'fiscal' => ['handleFiscal', true],
+    'fiscal_check' => ['handleFiscalCheck', true],
+    'fiscal_homologation' => ['handleFiscalHomologation', true],
     'fiscal_xml' => ['handleFiscalXml', true],
     'fiscal_pdf' => ['handleFiscalPdf', true],
     'service_orders' => ['handleServiceOrders', true],

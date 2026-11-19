@@ -116,15 +116,47 @@ export function TagChip({ tag }) {
   );
 }
 
-export function Tabs({ tabs, active, onChange }) {
-  return (
-    <div className="tabs" role="tablist">
+export function Tabs({ tabs, active, onChange, scrollControls = false }) {
+  const listRef = useRef(null);
+  const [scroll, setScroll] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    if (!scrollControls) return undefined;
+    const list = listRef.current;
+    if (!list) return undefined;
+    const update = () => setScroll({
+      left: list.scrollLeft > 1,
+      right: list.scrollLeft + list.clientWidth < list.scrollWidth - 1,
+    });
+    const observer = new ResizeObserver(update);
+    observer.observe(list);
+    const activeTab = [...list.children].find((item) => item.getAttribute('aria-selected') === 'true');
+    activeTab?.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'nearest' });
+    update();
+    list.addEventListener('scroll', update);
+    return () => {
+      observer.disconnect();
+      list.removeEventListener('scroll', update);
+    };
+  }, [active, scrollControls, tabs]);
+
+  const list = (
+    <div className="tabs" role="tablist" ref={listRef}>
       {tabs.map((tab) => (
-        <button key={tab.key} type="button" role="tab" className={`tab ${active === tab.key ? 'active' : ''}`} onClick={() => onChange(tab.key)}>
+        <button key={tab.key} type="button" role="tab" aria-selected={active === tab.key} className={`tab ${active === tab.key ? 'active' : ''}`} onClick={() => onChange(tab.key)}>
           {tab.label}
           {tab.count !== undefined && tab.count !== null && <span className="count">{tab.count}</span>}
         </button>
       ))}
+    </div>
+  );
+  if (!scrollControls) return list;
+
+  return (
+    <div className="tabs-scroll-controls">
+      <button type="button" className="tabs-scroll-button" aria-label="Rolar abas para a esquerda" disabled={!scroll.left} onClick={() => listRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}><ChevronLeft size={18} /></button>
+      {list}
+      <button type="button" className="tabs-scroll-button" aria-label="Rolar abas para a direita" disabled={!scroll.right} onClick={() => listRef.current?.scrollBy({ left: 240, behavior: 'smooth' })}><ChevronRight size={18} /></button>
     </div>
   );
 }

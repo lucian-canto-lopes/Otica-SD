@@ -2,8 +2,9 @@
 declare(strict_types=1);
 
 const CLIENT_FIELDS = [
-    'kind', 'name', 'nickname', 'cpf', 'rg', 'birth_date', 'gender', 'phone', 'whatsapp', 'email', 'instagram',
-    'zip', 'address', 'number', 'complement', 'neighborhood', 'city', 'state', 'occupation', 'origin', 'notes',
+    'kind', 'name', 'nickname', 'cpf', 'cnpj', 'rg', 'birth_date', 'gender', 'phone', 'whatsapp', 'email', 'instagram',
+    'zip', 'address', 'number', 'complement', 'neighborhood', 'city', 'state', 'fiscal_city_code',
+    'fiscal_ie_indicator', 'fiscal_ie', 'occupation', 'origin', 'notes',
     'next_contact_date', 'seller_id',
 ];
 
@@ -105,11 +106,16 @@ function clientValuesFromInput(array $input, int $companyId): array
     if ($sellerId && !fetchValue('SELECT 1 FROM company_users WHERE company_id = ? AND user_id = ?', [$companyId, $sellerId])) {
         $sellerId = null;
     }
+    $cnpj = normalizeFiscalCnpj(optionalText($input, 'cnpj', 20));
+    if ($cnpj !== '' && !preg_match('/^[A-Z0-9]{14}$/D', $cnpj)) {
+        sendError('O CNPJ do cliente deve ter 14 caracteres, com letras e números quando aplicável.');
+    }
     return [
         'kind' => in_array($input['kind'] ?? 'client', ['client', 'lead'], true) ? ($input['kind'] ?? 'client') : 'client',
         'name' => requiredText($input, 'name', 150, 'nome'),
         'nickname' => optionalText($input, 'nickname', 80),
         'cpf' => onlyDigits(optionalText($input, 'cpf', 20)),
+        'cnpj' => $cnpj,
         'rg' => optionalText($input, 'rg', 30),
         'birth_date' => optionalDate($input, 'birth_date'),
         'gender' => in_array($input['gender'] ?? '', ['F', 'M', 'O'], true) ? $input['gender'] : '',
@@ -124,6 +130,9 @@ function clientValuesFromInput(array $input, int $companyId): array
         'neighborhood' => optionalText($input, 'neighborhood', 100),
         'city' => optionalText($input, 'city', 100),
         'state' => strtoupper(optionalText($input, 'state', 2)),
+        'fiscal_city_code' => optionalFiscalCode($input, 'fiscal_city_code', 7, 7, 'Código IBGE do município do cliente'),
+        'fiscal_ie_indicator' => enumValue($input, 'fiscal_ie_indicator', ['1', '2', '9'], '9'),
+        'fiscal_ie' => optionalText($input, 'fiscal_ie', 30),
         'occupation' => optionalText($input, 'occupation', 100),
         'origin' => optionalText($input, 'origin', 60),
         'notes' => optionalText($input, 'notes', 5000),
