@@ -5,9 +5,15 @@ let csrfToken = '';
 let onUnauthorized = () => {};
 let onSessionLimit = () => {};
 const screenKey = 'ocular-screen-id';
+function createScreenId() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 let screenId = sessionStorage.getItem(screenKey);
 if (!/^[a-f0-9]{32}$/.test(screenId || '')) {
-  screenId = crypto.randomUUID().replaceAll('-', '');
+  screenId = createScreenId();
   sessionStorage.setItem(screenKey, screenId);
 }
 
@@ -18,7 +24,7 @@ if (typeof BroadcastChannel !== 'undefined') {
     if (data?.id !== screenId) return;
     if (data.type === 'probe') channel.postMessage({ type: 'occupied', id: screenId });
     if (data.type === 'occupied') {
-      screenId = crypto.randomUUID().replaceAll('-', '');
+      screenId = createScreenId();
       sessionStorage.setItem(screenKey, screenId);
     }
   };
